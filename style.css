@@ -70,7 +70,10 @@ a:hover{ border-bottom-color:var(--accent); }
 /* =====================================================================
    SCÈNE
    ===================================================================== */
-#scene{ position:fixed; inset:0; z-index:0; display:block; }
+/* touch-action:none est indispensable : sans lui, le navigateur intercepte le
+   glissement du doigt pour faire defiler la page, et le globe ne tourne jamais
+   au tactile. C'etait le defaut principal sur iPhone comme sur tablette. */
+#scene{ position:fixed; inset:0; z-index:0; display:block; touch-action:none; }
 #globeBadge{
   position:fixed; left:50%; transform:translateX(-50%); bottom:206px; z-index:3;
   max-width:min(600px,58vw); text-align:center; font-size:10.5px; line-height:1.55;
@@ -542,22 +545,128 @@ kbd{ font-family:var(--mono); font-size:10.5px; background:rgba(255,255,255,.09)
   #contenu{ width:340px; }
   #chapitres{ width:214px; }
 }
-@media (max-width:900px){
-  #topbar{ height:auto; flex-wrap:wrap; padding:8px 12px; gap:8px; }
-  #modes{ order:3; width:100%; overflow-x:auto; justify-content:flex-start; }
-  .mode-btn{ padding:5px 11px; font-size:11.5px; }
+/* La poignée de feuille n'existe que sur petit écran. */
+#feuillePoignee{ display:none; }
+
+/* ---------------------------------------------------------------------
+   TÉLÉPHONE ET TABLETTE EN PORTRAIT
+   Le panneau de texte devient une feuille ancrée en bas, repliable d'un
+   geste. Replié, il libère tout le globe ; déplié, il en laisse voir un
+   tiers. Sans cela le texte occupe l'écran entier et la Terre devient
+   littéralement inatteignable — c'était le défaut signalé sur iPhone.
+   ------------------------------------------------------------------- */
+@media (max-width:900px) and (orientation:portrait){
+  #topbar{ height:auto; flex-wrap:wrap; padding:7px 10px 0; gap:6px; }
+  .brand-text em{ display:none; }
+  .brand-text b{ font-size:15px; }
+  #modes{ order:3; width:100%; overflow-x:auto; justify-content:flex-start;
+    border-radius:0; border:none; background:none; padding:4px 0 6px;
+    scrollbar-width:none; }
+  #modes::-webkit-scrollbar{ display:none; }
+  .mode-btn{ padding:5px 12px; font-size:12px; flex:0 0 auto;
+    background:rgba(255,255,255,.05); }
+  .top-actions .pill{ padding:5px 10px; font-size:12px; }
   #chapitres{ display:none; }
-  #contenu{ left:10px; right:10px; width:auto; top:110px; bottom:214px; }
-  #frise{ height:188px; }
   #globeBadge{ display:none; }
-  #camWrap{ width:140px; bottom:auto; top:112px; right:10px; }
-  #hudGestes{ left:10px; right:10px; width:auto; bottom:214px; }
-  #narration{ left:10px; right:10px; bottom:214px; }
-  #narTexte{ font-size:15px; min-height:3.4em; }
-  .nar-reglages{ font-size:8.5px; gap:8px; }
+
+  #contenu{
+    left:0; right:0; width:auto; top:auto; border-radius:16px 16px 0 0;
+    bottom:calc(96px + env(safe-area-inset-bottom, 0px));
+    height:min(52vh, 420px); border-bottom:none;
+    transition:height .28s cubic-bezier(.32,.72,0,1);
+  }
+  #contenu.reduit{ height:46px; }
+  #contenu.reduit #contenuInner{ opacity:0; pointer-events:none; }
+  #contenuInner{ padding:4px 15px 18px; transition:opacity .18s; }
+
+  #feuillePoignee{
+    display:flex; align-items:center; gap:9px; flex:0 0 auto;
+    padding:11px 15px 8px; width:100%; position:relative;
+  }
+  .fp-barre{ position:absolute; top:5px; left:50%; transform:translateX(-50%);
+    width:34px; height:3px; border-radius:3px; background:rgba(255,255,255,.22); }
+  .fp-titre{ flex:1; text-align:left; font-size:11.5px; color:var(--texte-doux);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fp-fleche{ font-size:11px; color:var(--texte-faible); transition:transform .28s; }
+  #contenu.reduit .fp-fleche{ transform:rotate(180deg); }
+
+  /* frise réduite à l'essentiel : trois chiffres, pas six */
+  #frise{ left:0; right:0; bottom:0; border-radius:14px 14px 0 0; height:auto;
+    padding:8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); gap:6px; }
+  #friseEres{ height:8px; }
+  .ere-seg{ font-size:0; }
+  #frisePiste{ height:34px; }
+  .tick span{ font-size:7.5px; }
+  .fm-lab{ display:none; }
+  #friseInfos{ gap:5px; }
+  .fi-bloc{ padding:4px 7px; }
+  .fi-bloc:nth-child(n+4){ display:none; }
+  .fi-lab{ font-size:7.5px; }
+  .fi-bloc b{ font-size:12px; }
+
+  #camWrap{ width:120px; bottom:auto; top:96px; right:8px; }
+  #hudGestes{ left:8px; right:8px; width:auto; top:96px; bottom:auto; }
   .hud-liste{ flex-direction:row; flex-wrap:wrap; }
   .hud-liste li{ font-size:10px; }
+  #narration{ left:0; right:0; bottom:calc(96px + env(safe-area-inset-bottom, 0px)); }
+  #narBarre{ border-radius:14px 14px 0 0; padding:10px 13px 8px; }
+  #narTexte{ font-size:15px; min-height:3.2em; }
+  .nar-reglages{ font-size:8.5px; gap:8px; }
+  #evenement{ padding-bottom:130px; }
+  .c-titre{ font-size:20px; }
   .c-mesures{ grid-template-columns:repeat(3,1fr); }
-  #friseInfos{ flex-wrap:wrap; }
-  .fi-bloc{ min-width:calc(33% - 6px); }
+}
+
+/* ---------------------------------------------------------------------
+   TÉLÉPHONE EN PAYSAGE — la hauteur est la ressource rare
+   On revient à la disposition de bureau, très compressée : globe à gauche,
+   texte à droite sur toute la hauteur, frise réduite à sa piste.
+   ------------------------------------------------------------------- */
+@media (max-height:520px) and (orientation:landscape){
+  #topbar{ height:40px; padding:0 10px; gap:8px; }
+  .brand-text em{ display:none; }
+  .brand-text b{ font-size:13px; }
+  .brand-mark{ font-size:17px; }
+  #modes{ padding:2px; }
+  .mode-btn{ padding:3px 9px; font-size:10.5px; }
+  .top-actions .pill{ padding:4px 9px; font-size:10.5px; }
+
+  #chapitres{ display:none; }
+  #globeBadge{ display:none; }
+
+  #contenu{
+    top:44px; bottom:52px; right:6px; left:auto;
+    width:min(46%, 340px); border-radius:12px; height:auto;
+  }
+  #contenu.reduit{ width:46px; }
+  #contenu.reduit #contenuInner{ display:none; }
+  #contenu.reduit .fp-titre{ display:none; }
+  #contenuInner{ padding:8px 13px 14px; }
+  #feuillePoignee{ display:flex; align-items:center; gap:8px; padding:8px 12px 4px; }
+  .fp-barre{ display:none; }
+  .fp-titre{ flex:1; text-align:left; font-size:10.5px; color:var(--texte-doux);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fp-fleche{ font-size:10px; color:var(--texte-faible); transition:transform .28s; }
+  #contenu.reduit .fp-fleche{ transform:rotate(-90deg); }
+
+  /* la frise perd tout sauf sa piste : plus de place pour la Terre */
+  #frise{ left:6px; right:6px; bottom:4px; height:44px; padding:5px 10px; gap:4px;
+    border-radius:11px; }
+  #friseEres{ height:6px; }
+  .ere-seg{ font-size:0; }
+  #frisePiste{ height:20px; }
+  .tick span{ display:none; }
+  .fm-lab{ display:none; }
+  #friseInfos{ display:none; }
+
+  #camWrap{ width:104px; top:44px; bottom:auto; right:auto; left:6px; }
+  #hudGestes{ display:none; }
+  #narration{ left:6px; right:auto; bottom:52px; width:min(52%,340px); }
+  #narTexte{ font-size:13px; min-height:2.4em; }
+  .nar-reglages{ font-size:8px; gap:6px; }
+  .nar-reglages label{ display:none; }
+  #evenement{ padding-bottom:58px; }
+  .ev-boite{ padding:9px 13px 8px; }
+  .ev-nom{ font-size:15px; }
+  .c-titre{ font-size:17px; }
 }

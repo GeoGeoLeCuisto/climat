@@ -7,7 +7,7 @@
 <!-- Le suffixe ?v= force le navigateur a recharger apres chaque publication.
      Il est mis a jour automatiquement par outils/version.py, et app.js le
      propage lui-meme a data.js et paleo.js. Ne pas modifier a la main. -->
-<link rel="stylesheet" href="style.css?v=202607282149">
+<link rel="stylesheet" href="style.css?v=202607282204">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <script type="importmap">
 {
@@ -77,8 +77,15 @@
     <div id="chapList"></div>
   </aside>
 
-  <!-- ---------- PANNEAU DROIT : contenu ---------- -->
+  <!-- ---------- PANNEAU DROIT : contenu ----------
+       Sur mobile, ce panneau devient une feuille repliable : sans cela il
+       couvre tout l'ecran et le globe devient inaccessible au doigt. -->
   <aside id="contenu" class="panel">
+    <button id="feuillePoignee" title="Replier ou deplier le texte">
+      <span class="fp-barre"></span>
+      <span class="fp-titre" id="feuilleTitre">Comprendre en 10 min</span>
+      <span class="fp-fleche">▾</span>
+    </button>
     <div id="contenuInner"></div>
   </aside>
 
@@ -163,6 +170,6 @@
   </div>
 </div>
 
-<script type="module" src="app.js?v=202607282149"></script>
+<script type="module" src="app.js?v=202607282204"></script>
 </body>
 </html>

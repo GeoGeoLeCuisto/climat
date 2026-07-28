@@ -462,39 +462,63 @@ function poserMarqueurs(liste) {
   }
 }
 
-/* ---------- Contrôles souris / tactile (toujours disponibles) ---------- */
+/* ---------- Contrôles souris et tactile ---------------------------------
+   Un seul chemin de code pour la souris, le stylet et le doigt : les Pointer
+   Events couvrent les trois. On suit tous les pointeurs actifs, ce qui donne
+   la rotation à un doigt et le zoom à deux, sans traitement séparé. */
 function initControlesSouris(canvas) {
-  let glisse = false, lx = 0, ly = 0, pincement = null;
+  const pointeurs = new Map();
+  let ecartPincement = null;
+
+  const ecart = () => {
+    const [a, b] = [...pointeurs.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
 
   canvas.addEventListener("pointerdown", e => {
-    glisse = true; lx = e.clientX; ly = e.clientY; S.autoRotation = false;
     canvas.setPointerCapture(e.pointerId);
+    pointeurs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    S.autoRotation = false;
+    if (pointeurs.size === 2) ecartPincement = ecart();
+    // sur mobile, toucher le globe replie la feuille pour qu'on le voie
+    if (e.pointerType === "touch") replierFeuille(true);
   });
-  canvas.addEventListener("pointerup", e => { glisse = false; });
-  canvas.addEventListener("pointerleave", () => { glisse = false; });
+
+  const relacher = e => {
+    pointeurs.delete(e.pointerId);
+    if (pointeurs.size < 2) ecartPincement = null;
+  };
+  canvas.addEventListener("pointerup", relacher);
+  canvas.addEventListener("pointercancel", relacher);
+  canvas.addEventListener("pointerleave", relacher);
+
   canvas.addEventListener("pointermove", e => {
     souris.x = (e.clientX / innerWidth) * 2 - 1;
     souris.y = -(e.clientY / innerHeight) * 2 + 1;
     tip.style.left = (e.clientX + 16) + "px";
     tip.style.top = (e.clientY + 14) + "px";
-    if (!glisse) return;
-    cam.azim -= (e.clientX - lx) * 0.0055;
-    cam.polar = clamp(cam.polar - (e.clientY - ly) * 0.0055, 0.22, Math.PI - 0.22);
-    lx = e.clientX; ly = e.clientY;
+
+    const p = pointeurs.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+
+    if (pointeurs.size === 1) {
+      cam.azim -= dx * 0.0055;
+      cam.polar = clamp(cam.polar - dy * 0.0055, 0.22, Math.PI - 0.22);
+    } else if (pointeurs.size === 2) {
+      const d = ecart();
+      if (ecartPincement && d > 0) {
+        cam.cibleDist = clamp(cam.cibleDist * (ecartPincement / d), 1.35, 7);
+      }
+      ecartPincement = d;
+    }
   });
+
   canvas.addEventListener("wheel", e => {
     e.preventDefault();
     cam.cibleDist = clamp(cam.cibleDist * (1 + Math.sign(e.deltaY) * 0.09), 1.35, 7);
   }, { passive: false });
-
-  canvas.addEventListener("touchmove", e => {
-    if (e.touches.length === 2) {
-      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-      if (pincement) cam.cibleDist = clamp(cam.cibleDist * (pincement / d), 1.35, 7);
-      pincement = d;
-    }
-  }, { passive: true });
-  canvas.addEventListener("touchend", () => { pincement = null; });
 }
 
 /* ---------- Boucle ---------- */
@@ -874,6 +898,7 @@ function allerA(p, force = false) {
     const actif = $(".chap.actif");
     if (actif) actif.scrollIntoView({ block: "nearest", behavior: "smooth" });
     if (S.mode === "histoire") rendreContenu();
+    majTitreFeuille();
     if (change) narrationSuit();
   }
 }
@@ -930,6 +955,10 @@ function initUI() {
   initNarration();
   $("#btnAide").onclick = ouvrirAide;
   $("#evStop").onclick = arreterEvenement;
+  $("#feuillePoignee").onclick = basculerFeuille;
+
+  // changer d'onglet ou d'étape rouvre la feuille : le texte vient d'être demandé
+  $$(".mode-btn").forEach(b => b.addEventListener("click", () => replierFeuille(false)));
   $("#camClose").onclick = () => basculerGestes(false);
   $("#modaleClose").onclick = () => $("#modale").classList.add("hidden");
   $("#modale").onclick = e => { if (e.target.id === "modale") $("#modale").classList.add("hidden"); };
@@ -962,7 +991,37 @@ function initUI() {
   rendreContenu();
 }
 
-function majModes() { $$(".mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === S.mode)); }
+function majModes() {
+  $$(".mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === S.mode));
+  majTitreFeuille();
+}
+
+/* ---------- Feuille repliable (petits écrans) ----------
+   Sur téléphone, le texte et le globe se disputent le même écran. La feuille
+   permet d'arbitrer d'un geste, et se replie automatiquement dès qu'on touche
+   la Terre : on ne devrait jamais avoir à choisir entre lire et manipuler. */
+function feuilleActive() {
+  return getComputedStyle($("#feuillePoignee")).display !== "none";
+}
+
+function replierFeuille(replier) {
+  if (!feuilleActive()) return;
+  $("#contenu").classList.toggle("reduit", replier);
+}
+
+function basculerFeuille() {
+  $("#contenu").classList.toggle("reduit");
+}
+
+function majTitreFeuille() {
+  const el = $("#feuilleTitre");
+  if (!el) return;
+  const btn = $(`.mode-btn[data-mode="${S.mode}"]`);
+  let t = btn ? btn.textContent.trim() : "";
+  if (S.mode === "parcours") t += ` · étape ${S.station + 1}/${PARCOURS.length}`;
+  else if (S.mode === "histoire") t += ` · ${S.chapitre.ere}`;
+  el.textContent = t;
+}
 
 function basculerLecture(v) {
   S.lecture = v;
@@ -1093,6 +1152,8 @@ function allerStation(i) {
   const ch = CHAPITRES.find(c => c.id === st.chapitre);
   if (ch) allerA(anneeVersP(ch.annee), true);
   rendreContenu();
+  majTitreFeuille();
+  replierFeuille(false);
   narrationSuit();
 }
 
