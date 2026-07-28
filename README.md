@@ -152,6 +152,29 @@ Armstrong McKay et al. 2022 (points de bascule) · PAGES 2k 2019 · Ruddiman,
 
 Liste complète et liens : onglet **Méthode & sources** dans l'application.
 
+## Droits
+
+**© 2026 GeoGeoLeCuisto. Tous droits réservés.**
+
+Le code, les textes, le parcours guidé et les narrations de cette application **ne sont pas
+placés sous licence libre**. Aucune autorisation de réutilisation, de modification, de
+redistribution ou d'exploitation n'est accordée.
+
+Cette réserve porte uniquement sur mon travail. Elle ne s'étend pas aux éléments tiers, qui
+restent régis par leurs licences propres et peuvent être réutilisés selon leurs conditions :
+reconstructions paléogéographiques (CC-BY), traits de côte Natural Earth (domaine public),
+three.js (MIT), MediaPipe (Apache 2.0). Voir [CREDITS.md](CREDITS.md).
+
+Deux précisions honnêtes, parce qu'une mention de droits ne fait pas tout :
+
+- Le dépôt est public sur GitHub, condition nécessaire pour héberger le site gratuitement.
+  Les conditions d'utilisation de la plateforme autorisent ses membres à consulter et à
+  « forker » un dépôt public, indépendamment de la présente mention.
+- Comme pour toute page web, le code source est lisible par n'importe quel visiteur.
+
+Autrement dit : cette mention interdit la réutilisation, elle ne l'empêche pas techniquement.
+Rendre le dépôt privé tout en gardant le site en ligne suppose un compte GitHub payant.
+
 ## Fichiers
 
 | Fichier | Rôle |

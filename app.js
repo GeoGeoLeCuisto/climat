@@ -1010,6 +1010,16 @@ function vueMethode() {
       Elle ne prédit pas l'avenir. Les scénarios sont des explorations conditionnelles, et le simulateur repose sur des hypothèses explicitement listées dans l'onglet Solutions.<br><br>
       ${META.majDonnees}.
     </div>
+
+    <div class="c-h">Droits</div>
+    <div class="c-geo">
+      <b>© 2026 GeoGeoLeCuisto. Tous droits réservés.</b><br><br>
+      Le code, les textes, le parcours guidé et les narrations de cette application ne sont placés
+      sous aucune licence libre et ne sont pas réutilisables.<br><br>
+      Cette réserve ne s'étend pas aux éléments tiers, qui restent régis par leurs licences propres :
+      reconstructions paléogéographiques MERDITH2021 (CC-BY, Merdith et al. 2021 / EarthByte),
+      traits de côte Natural Earth (domaine public), three.js (MIT), MediaPipe (Apache 2.0).
+    </div>
   `;
 }
 

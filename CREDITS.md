@@ -54,3 +54,8 @@ Le code, les textes, le parcours guidé et les narrations sont originaux. Les si
 de modélisation (champ de couleur zonal, limite des glaces, mécanique du simulateur) sont
 des choix de cette application et sont signalés comme tels à l'écran — ils n'engagent aucune
 des sources citées ci-dessus.
+
+**© 2026 GeoGeoLeCuisto. Tous droits réservés.** Cette partie originale n'est placée sous
+aucune licence libre : elle n'est pas réutilisable. Les éléments tiers listés plus haut,
+eux, restent utilisables selon leurs licences respectives. Voir la section « Droits » du
+[README](README.md).
