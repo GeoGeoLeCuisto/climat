@@ -1248,10 +1248,24 @@ export const EVENEMENTS = [
    ------------------------------------------------------------------- */
 export const PARCOURS = [
   {
+    id: "depart", chapitre: "hadeen",
+    numero: "Le point de départ",
+    titre: "Voici la Terre il y a 4,54 milliards d'années",
+    phrase: "Pas de continents, pas d'océans, pas de ciel. Une bille de roche en fusion. " +
+      "C'est de là que nous partons — et c'est ce globe que vous pourrez parcourir librement, " +
+      "d'un bout à l'autre de la frise, après ce parcours.",
+    points: [
+      { t: "Ce parcours dure environ dix minutes et compte neuf étapes. Il ne suit pas l'ordre chronologique : il suit un raisonnement. Nous allons d'abord voir où vous vivez, puis remonter chercher pourquoi c'est en train de changer.", s: "Structure de l'application" },
+      { t: "Une seule idée à garder en tête du début à la fin : ce qui pose problème n'est pas que le climat change — il a toujours changé — mais la vitesse à laquelle nous le changeons.", s: "Zeebe, Ridgwell & Zachos 2016, Nature Geoscience" },
+      { t: "Chaque chiffre affiché dans cette application porte sa source, et chaque courbe son niveau de fiabilité. Rien n'y est inventé, y compris ce globe : au-delà de 900 millions d'années, aucun continent n'est représenté, parce qu'aucun modèle publié ne sait où ils étaient.", s: "Onglet Méthode & sources" },
+    ],
+  },
+  {
     id: "parenthese", chapitre: "holocene",
     numero: "La parenthèse",
     titre: "Tout ce que nous appelons civilisation tient dans un demi-degré",
-    phrase: "Depuis 11 700 ans, la température de la planète n'a pratiquement pas bougé. " +
+    phrase: "Faisons maintenant un bond de quatre milliards et demi d'années, jusqu'à aujourd'hui. " +
+      "Depuis 11 700 ans, la température de la planète n'a pratiquement pas bougé. " +
       "C'est dans ce calme, et seulement dans ce calme, que nous avons appris à cultiver, " +
       "à bâtir des villes et à écrire.",
     points: [
@@ -1558,8 +1572,17 @@ export const NARRATIONS = {
    ------------------------------------------------------------------- */
 export const NARRATION_PARCOURS = {
   fr: {
+    depart: [
+      "Voici la Terre, il y a quatre milliards cinq cent quarante millions d'années.",
+      "Pas de continents. Pas d'océans. Pas de ciel. Une bille de roche en fusion, frappée par les débris de sa propre naissance.",
+      "C'est de là que nous partons.",
+      "Ce parcours dure une dizaine de minutes. Il ne suit pas l'ordre chronologique : il suit un raisonnement. Nous allons d'abord regarder où vous vivez, puis remonter chercher pourquoi cela change.",
+      "Et une seule idée est à garder en tête, du début à la fin.",
+      "Ce qui pose problème n'est pas que le climat change. Il a toujours changé. C'est la vitesse à laquelle nous le changeons.",
+    ],
     parenthese: [
-      "Commençons par ce qui devrait nous étonner le plus.",
+      "Faisons un bond de quatre milliards et demi d'années, jusqu'à aujourd'hui.",
+      "Et commençons par ce qui devrait nous étonner le plus.",
       "Depuis onze mille sept cents ans, la température de la planète n'a pratiquement pas bougé. Un demi-degré de part et d'autre, tout au plus.",
       "C'est dans ce calme, et seulement dans ce calme, que nous avons semé le premier grain, bâti la première ville, écrit le premier mot.",
       "Chaque port, chaque zone agricole, chaque delta habité a été choisi en fonction de ce climat-là.",
@@ -1622,8 +1645,17 @@ export const NARRATION_PARCOURS = {
     ],
   },
   en: {
+    depart: [
+      "This is the Earth, four billion five hundred and forty million years ago.",
+      "No continents. No oceans. No sky. A ball of molten rock, struck by the debris of its own birth.",
+      "This is where we begin.",
+      "This journey takes about ten minutes. It does not follow chronological order: it follows an argument. We will first look at where you live, then travel back to find out why it is changing.",
+      "And one single idea should stay with you, from beginning to end.",
+      "The problem is not that the climate is changing. It has always changed. The problem is how fast we are changing it.",
+    ],
     parenthese: [
-      "Let us begin with what should astonish us most.",
+      "Now let us jump four and a half billion years forward, to today.",
+      "And let us begin with what should astonish us most.",
       "For eleven thousand seven hundred years, the temperature of the planet has barely moved. Half a degree either way, at most.",
       "It is in this calm, and only in this calm, that we sowed the first grain, built the first city, wrote the first word.",
       "Every port, every farming region, every inhabited delta was chosen to suit that climate.",
