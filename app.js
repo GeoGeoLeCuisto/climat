@@ -449,17 +449,59 @@ function textureMarqueur() {
   return texMarqueur;
 }
 
+/* Au doigt, une cible de 0,1 unité est intouchable. On agrandit les marqueurs
+   sur les écrans tactiles, et surtout on ne vise plus par lancer de rayon mais
+   par proximité à l'écran : c'est nettement plus indulgent. */
+const TACTILE = matchMedia("(pointer: coarse)").matches;
+
 function poserMarqueurs(liste) {
   groupeMarqueurs.clear();
+  masquerMarqueur();
   for (const m of liste) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({
       map: textureMarqueur(), transparent: true, depthTest: true, sizeAttenuation: true,
     }));
     sp.position.copy(latLonVersVec3(m.lat, m.lon, 1.012));
-    sp.scale.setScalar(0.1);
+    sp.scale.setScalar(TACTILE ? 0.15 : 0.1);
     sp.userData = m;
     groupeMarqueurs.add(sp);
   }
+}
+
+/** Marqueur le plus proche du point (x, y) à l'écran, face visible uniquement. */
+function marqueurPres(x, y, tolerance = TACTILE ? 44 : 26) {
+  let best = null, dmin = tolerance;
+  const vue = new THREE.Vector3();
+  for (const sp of groupeMarqueurs.children) {
+    // un marqueur de l'autre côté du globe ne doit pas être cliquable
+    const versCamera = camera.position.clone().sub(sp.position).normalize();
+    if (sp.position.clone().normalize().dot(versCamera) < 0.02) continue;
+    vue.copy(sp.position).project(camera);
+    if (vue.z > 1) continue;
+    const sx = (vue.x + 1) / 2 * innerWidth, sy = (-vue.y + 1) / 2 * innerHeight;
+    const d = Math.hypot(sx - x, sy - y);
+    if (d < dmin) { dmin = d; best = sp; }
+  }
+  return best;
+}
+
+let marqueurEpingle = null;
+
+function montrerMarqueur(sp, x, y, epingle = false) {
+  const m = sp.userData;
+  tip.innerHTML = `<b>${m.nom}</b><br><span style="color:#91a3bd">${m.note}</span>` +
+    (epingle ? `<br><span style="color:#61748f;font-size:10px">${TACTILE ? "Touchez" : "Cliquez"} ailleurs pour fermer</span>` : "");
+  tip.style.display = "block";
+  const large = Math.min(230, innerWidth - 24);
+  tip.style.left = Math.max(10, Math.min(x + 16, innerWidth - large - 12)) + "px";
+  tip.style.top = Math.max(10, Math.min(y + 14, innerHeight - 96)) + "px";
+  marqueurEpingle = epingle ? sp : null;
+}
+
+function masquerMarqueur() {
+  if (!tip) return;
+  tip.style.display = "none";
+  marqueurEpingle = null;
 }
 
 /* ---------- Contrôles souris et tactile ---------------------------------
@@ -476,8 +518,10 @@ function initControlesSouris(canvas) {
   };
 
   canvas.addEventListener("pointerdown", e => {
-    canvas.setPointerCapture(e.pointerId);
-    pointeurs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // on enregistre le pointeur AVANT de tenter la capture : celle-ci peut
+    // échouer, et le glissement ne doit pas en dépendre
+    pointeurs.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() });
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* sans capture, ça marche quand même */ }
     S.autoRotation = false;
     if (pointeurs.size === 2) ecartPincement = ecart();
     // sur mobile, toucher le globe replie la feuille pour qu'on le voie
@@ -485,6 +529,18 @@ function initControlesSouris(canvas) {
   });
 
   const relacher = e => {
+    const p = pointeurs.get(e.pointerId);
+    // un appui bref et immobile n'est pas un glissement : c'est un clic
+    if (p && e.type === "pointerup") {
+      const bouge = Math.hypot(e.clientX - p.x0, e.clientY - p.y0);
+      if (bouge < 9 && performance.now() - p.t0 < 500 && pointeurs.size === 1) {
+        const m = marqueurPres(e.clientX, e.clientY);
+        // à la souris le survol suffit ; au doigt il n'existe pas, donc on épingle
+        const epingler = e.pointerType !== "mouse";
+        if (m) montrerMarqueur(m, e.clientX, e.clientY, epingler);
+        else if (marqueurEpingle) masquerMarqueur();
+      }
+    }
     pointeurs.delete(e.pointerId);
     if (pointeurs.size < 2) ecartPincement = null;
   };
@@ -504,7 +560,8 @@ function initControlesSouris(canvas) {
     p.x = e.clientX; p.y = e.clientY;
 
     if (pointeurs.size === 1) {
-      cam.azim -= dx * 0.0055;
+      // manipulation directe : le globe suit le doigt, il n'est pas poussé
+      cam.azim += dx * 0.0055;
       cam.polar = clamp(cam.polar - dy * 0.0055, 0.22, Math.PI - 0.22);
     } else if (pointeurs.size === 2) {
       const d = ecart();
@@ -552,15 +609,12 @@ function animer() {
     allerA(S.p);
   }
 
-  // survol des marqueurs
-  if (groupeMarqueurs.children.length) {
-    raycaster.setFromCamera(souris, camera);
-    const hits = raycaster.intersectObjects(groupeMarqueurs.children, false);
-    if (hits.length) {
-      const m = hits[0].object.userData;
-      tip.innerHTML = `<b>${m.nom}</b><br><span style="color:#91a3bd">${m.note}</span>`;
-      tip.style.display = "block";
-    } else tip.style.display = "none";
+  // survol des marqueurs à la souris ; au doigt, c'est le clic qui les épingle
+  if (groupeMarqueurs.children.length && !marqueurEpingle && !TACTILE) {
+    const sx = (souris.x + 1) / 2 * innerWidth, sy = (-souris.y + 1) / 2 * innerHeight;
+    const sp = marqueurPres(sx, sy);
+    if (sp) montrerMarqueur(sp, sx, sy);
+    else tip.style.display = "none";
   }
 
   renderer.render(scene, camera);
@@ -570,7 +624,16 @@ function animer() {
 window.__CLIMAT = { S, cam, get images() { return images; },
   get geo() { return { charge: geoOK, anneaux: ANNEAUX.length }; },
   texture: texCanvas, scene: () => scene,
-  main: (lm, prec) => analyserMain(lm, prec), zoom: e => niveauZoom(e), narration: () => N };
+  main: (lm, prec) => analyserMain(lm, prec), zoom: e => niveauZoom(e), narration: () => N,
+  camera: () => camera, marqueurs: () => groupeMarqueurs, marqueurPres, tactile: TACTILE,
+  /** replace la caméra hors boucle de rendu (utile pour les tests) */
+  recadrer() {
+    camera.position.set(
+      cam.dist * Math.sin(cam.polar) * Math.cos(cam.azim),
+      cam.dist * Math.cos(cam.polar),
+      cam.dist * Math.sin(cam.polar) * Math.sin(cam.azim));
+    camera.lookAt(0, 0, 0); camera.updateMatrixWorld(true);
+  } };
 
 /* =====================================================================
    4 bis. ÉVÉNEMENTS ANIMÉS
@@ -1980,7 +2043,8 @@ function boucleGeste() {
 
   if (S.geste === "paume") {
     if (derniere) {
-      cam.azim -= (paumeX - derniere.x) * 5.2;
+      // même convention qu'à la souris : la Terre suit la main
+      cam.azim += (paumeX - derniere.x) * 5.2;
       cam.polar = clamp(cam.polar + (paumeY - derniere.y) * 4.4, 0.22, Math.PI - 0.22);
     }
     S.autoRotation = false;
