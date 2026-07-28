@@ -273,6 +273,45 @@ a:hover{ border-bottom-color:var(--accent); }
   font-family:var(--mono); color:var(--vert); white-space:nowrap; text-shadow:0 2px 8px #000; }
 
 /* =====================================================================
+   SURFACES DE TEMPS PROFOND & ÉVÉNEMENTS
+   ===================================================================== */
+.surface-bloc{ border:1px solid rgba(255,180,84,.28); background:rgba(255,180,84,.07);
+  border-radius:12px; padding:12px 13px; margin-bottom:11px; }
+.surface-head{ display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:13px; }
+.surface-pastille{ width:9px; height:9px; border-radius:50%; flex:0 0 auto;
+  background:var(--accent-2); box-shadow:0 0 10px var(--accent-2); }
+.surface-quoi{ font-size:12.4px; color:#c8d6e8; line-height:1.55; margin-bottom:9px; }
+
+.evt-bloc{ border:1px solid rgba(231,76,60,.3); background:rgba(231,76,60,.06);
+  border-radius:12px; padding:12px 13px; margin-bottom:11px; }
+.btn-evt{ width:100%; padding:10px; border-radius:9px; margin-bottom:8px;
+  background:rgba(231,76,60,.18); border:1px solid rgba(231,76,60,.42); color:#ffc7bd;
+  font-size:12.8px; text-align:left; transition:.16s; }
+.btn-evt:hover{ background:rgba(231,76,60,.32); color:#fff; }
+.evt-quand{ font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--texte-faible); margin-bottom:6px; }
+.evt-resume{ font-size:12.4px; color:#c8d6e8; line-height:1.55; margin-bottom:9px; }
+.evt-avert{ font-size:10.8px; color:#ffd9a0; background:rgba(255,180,84,.1);
+  border-radius:7px; padding:6px 8px; margin-top:4px; line-height:1.45; }
+
+#evenement{ position:fixed; inset:0; z-index:70; display:grid; place-items:end center;
+  padding-bottom:210px; pointer-events:none; }
+.ev-boite{ pointer-events:auto; width:min(520px,86vw); text-align:center;
+  background:rgba(6,10,20,.9); border:1px solid var(--bord-fort); border-radius:14px;
+  backdrop-filter:blur(18px); box-shadow:var(--ombre); padding:15px 18px 13px; }
+.ev-quand{ font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--texte-faible); }
+.ev-nom{ font-family:var(--serif); font-size:19px; margin:3px 0 8px; color:#fff; }
+.ev-phase{ font-size:13px; color:#ffc7a0; min-height:1.5em; transition:.2s; }
+.ev-progres{ height:3px; background:rgba(255,255,255,.12); border-radius:3px;
+  overflow:hidden; margin:10px 0 8px; }
+#evProgres{ height:100%; width:0%; background:linear-gradient(90deg,var(--accent-2),var(--chaud));
+  transition:width .15s linear; }
+.ev-avert{ font-size:10.2px; color:var(--texte-faible); line-height:1.45; }
+.ev-stop{ margin-top:9px; padding:5px 16px; border-radius:999px; font-size:11.5px;
+  background:rgba(255,255,255,.07); border:1px solid var(--bord); color:var(--texte-doux); }
+.ev-stop:hover{ background:rgba(255,255,255,.15); color:#fff; }
+
+/* =====================================================================
    PARCOURS GUIDÉ
    ===================================================================== */
 .parcours-fil{ display:flex; gap:6px; margin-bottom:16px; }

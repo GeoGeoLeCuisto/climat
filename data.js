@@ -1113,6 +1113,134 @@ export const METHODE = {
 };
 
 /* ---------------------------------------------------------------------
+   7 bis. SURFACES DE TEMPS PROFOND
+   Au-delà de 900 Ma, aucune reconstruction de continents n'existe.
+   Plutôt que d'afficher la géographie actuelle (faux) ou des continents
+   inventés (pire), on représente l'ÉTAT DE SURFACE, qui lui est documenté :
+   océan de magma, puis monde océanique sans terres émergées notables.
+   ------------------------------------------------------------------- */
+export const SURFACES = {
+  hadeen: {
+    type: "magma",
+    titre: "Océan de magma",
+    quoi: "Aucun continent. Après l'impact géant, la surface est fondue sur des centaines de kilomètres de profondeur. " +
+      "Une croûte basaltique se forme, se brise et se refond. Il n'y a rien à cartographier.",
+    faits: [
+      { t: "L'impact qui forme la Lune refond la Terre : océan de magma global, refroidi en quelques millions d'années.", s: "Elkins-Tanton 2012, Annu. Rev. Earth Planet. Sci." },
+      { t: "L'eau liquide est attestée dès 4,4 Ga par les zircons de Jack Hills — les premiers océans arrivent vite.", s: "Wilde et al. 2001, Nature" },
+      { t: "Aucune croûte continentale stable n'est conservée de cette période : la plus vieille roche datée a 4,03 Ga.", s: "Gneiss d'Acasta ; Bowring & Williams 1999" },
+    ],
+    hazeCouleur: 0xff6a2a,
+  },
+  archeen: {
+    type: "ocean",
+    // La température archéenne est très mal contrainte (0 à +40 °C selon les proxies).
+    // Peindre le globe avec la valeur centrale afficherait une certitude qui n'existe pas :
+    // on affiche donc une teinte modérée, et l'incertitude est dite en toutes lettres.
+    anomAffichee: 5,
+    titre: "Monde océanique",
+    quoi: "Des proto-continents existent, mais ils sont peu nombreux, largement submergés — et surtout, " +
+      "leur position est inconnue. Ils ne sont donc pas représentés. Le globe montre l'océan global, rien d'autre. " +
+      "La teinte est volontairement modérée : la température de l'Archéen est l'une des moins bien contraintes " +
+      "de toute l'histoire de la Terre, et un globe écarlate suggérerait une précision qui n'existe pas.",
+    faits: [
+      { t: "Les terres émergées ne représenteraient que quelques pour cent de la surface du globe vers 3 Ga, contre 28 % aujourd'hui — estimation de modèle, débattue.", s: "Flament, Coltice & Rey 2008, Earth and Planetary Science Letters" },
+      { t: "Aucun modèle tectonique publié ne reconstitue la position des blocs continentaux au-delà de 1 milliard d'années.", s: "Merdith et al. 2021, Earth-Science Reviews — limite de couverture du modèle" },
+      { t: "L'atmosphère, riche en méthane et dépourvue d'oxygène, portait probablement une brume organique orangée, par intermittence.", s: "Zerkle et al. 2012, Nature Geoscience ; Trainer et al. 2006, PNAS" },
+    ],
+    hazeCouleur: 0xd98a3a,
+  },
+  goe: {
+    type: "ocean",
+    titre: "Monde océanique glacé",
+    quoi: "La croûte continentale existe désormais en volume, mais sa position reste hors de portée des modèles. " +
+      "Ce que le globe montre ici, c'est l'englacement : les glaciations huroniennes, qui suivent l'effondrement de l'effet de serre du méthane.",
+    faits: [
+      { t: "Glaciations huroniennes : environ 2,45 à 2,22 Ga, avec des dépôts glaciaires jusqu'aux basses latitudes.", s: "Formation de Gowganda, Ontario ; Kopp et al. 2005, PNAS" },
+      { t: "La montée de l'oxygène détruit le méthane atmosphérique : la brume orangée disparaît, le ciel s'éclaircit.", s: "Farquhar et al. 2000, Science ; Kopp et al. 2005" },
+      { t: "Position des continents : toujours inconnue à cet âge. Le supercontinent Kenorland est une hypothèse discutée, pas une reconstruction.", s: "Littérature tectonique ; aucun modèle full-plate publié au-delà de 1 Ga" },
+    ],
+    hazeCouleur: 0x6fa8d8,
+  },
+};
+
+/* ---------------------------------------------------------------------
+   7 ter. ÉVÉNEMENTS ANIMÉS
+   Reconstitutions SCHÉMATIQUES. Ce ne sont pas des données : ni les
+   trajectoires, ni les échelles de temps de l'animation ne sont réelles.
+   L'application l'affiche explicitement pendant chaque animation.
+   ------------------------------------------------------------------- */
+export const EVENEMENTS = [
+  {
+    id: "lune", chapitre: "hadeen", duree: 11000,
+    nom: "L'impact géant et la naissance de la Lune",
+    quand: "il y a ≈ 4,51 milliards d'années",
+    resume: "Un corps de la taille de Mars, souvent appelé Théia, percute la Terre. " +
+      "L'impact vaporise une partie des deux corps, refond la Terre, et projette en orbite " +
+      "un disque de débris dont la Lune s'accrète en quelques dizaines à centaines d'années.",
+    faits: [
+      { t: "Âge de la Lune : environ 4,51 milliards d'années, d'après les zircons lunaires.", s: "Barboni et al. 2017, Science Advances" },
+      { t: "Le modèle de l'impact géant explique le moment cinétique du système Terre-Lune et le faible noyau lunaire.", s: "Canup & Asphaug 2001, Nature" },
+      { t: "La Lune stabilise l'obliquité de l'axe terrestre — donc la régularité des saisons, et une partie du rythme des cycles glaciaires.", s: "Laskar, Joutel & Robutel 1993, Nature" },
+    ],
+    avertissement: "Animation schématique : angle d'impact, vitesse et durée sont illustratifs, pas simulés.",
+  },
+  {
+    id: "oxydation", chapitre: "goe", duree: 8000,
+    nom: "La Grande Oxydation",
+    quand: "il y a 2,45 à 2,20 milliards d'années",
+    resume: "L'oxygène produit par les cyanobactéries sature les puits océaniques et monte dans " +
+      "l'atmosphère. Il détruit le méthane, gaz à effet de serre majeur : la brume orangée se dissipe, " +
+      "le ciel s'éclaircit, et l'effet de serre s'effondre.",
+    faits: [
+      { t: "Datation par la disparition du fractionnement isotopique du soufre indépendant de la masse.", s: "Farquhar et al. 2000, Science" },
+      { t: "La perte de l'effet de serre du méthane est le mécanisme proposé pour les glaciations huroniennes.", s: "Kopp et al. 2005, PNAS" },
+    ],
+    avertissement: "Animation schématique : le changement d'atmosphère s'est étalé sur des centaines de millions d'années.",
+  },
+  {
+    id: "trapps", chapitre: "permien", duree: 9000, lat: 67, lon: 95,
+    nom: "Les trapps de Sibérie",
+    quand: "il y a 252 millions d'années",
+    resume: "Une province magmatique s'ouvre en Sibérie et déverse plusieurs millions de kilomètres " +
+      "cubes de basaltes sur environ un million d'années. Le magma traverse d'anciens bassins de " +
+      "charbon et d'évaporites, libérant un carbone thermogénique qui s'ajoute au CO₂ volcanique.",
+    faits: [
+      { t: "Volume estimé : de l'ordre de 3 millions de km³ de basaltes.", s: "Burgess & Bowring 2015, Science Advances" },
+      { t: "Réchauffement des eaux tropicales de +8 à +10 °C, acidification, anoxie, puis extinction de ~81 % des espèces marines.", s: "Joachimski et al. 2012 ; Clarkson et al. 2015 ; Stanley 2016" },
+    ],
+    avertissement: "Animation schématique : l'éruption a duré environ un million d'années, pas quelques secondes.",
+  },
+  {
+    id: "chicxulub", chapitre: "kpg", duree: 9000, lat: 21.4, lon: -89.5,
+    nom: "L'impact de Chicxulub",
+    quand: "il y a 66,04 millions d'années",
+    resume: "Un astéroïde d'environ 10 kilomètres frappe la péninsule du Yucatán. L'impact vaporise " +
+      "des roches riches en sulfates et injecte poussières et aérosols dans la stratosphère. " +
+      "La photosynthèse s'effondre, un hiver d'impact s'installe pour quelques années.",
+    faits: [
+      { t: "Impact daté à 66,04 ± 0,03 millions d'années ; cratère d'environ 180 km de diamètre.", s: "Renne et al. 2013, Science ; forage IODP-ICDP 364" },
+      { t: "Environ 75 % des espèces disparaissent, dont tous les dinosaures non-aviens.", s: "Schulte et al. 2010, Science" },
+      { t: "Puis le CO₂ libéré réchauffe la planète pendant des dizaines de milliers d'années : refroidissement bref, réchauffement long.", s: "Vellekoop et al. 2014, PNAS" },
+    ],
+    avertissement: "Animation schématique : trajectoire, vitesse et durée sont illustratives, pas simulées.",
+  },
+  {
+    id: "boule", chapitre: "snowball", duree: 9000,
+    nom: "La Terre boule de neige",
+    quand: "il y a 717 à 635 millions d'années",
+    resume: "La glace quitte les pôles, gagne les moyennes latitudes, atteint les tropiques. " +
+      "Chaque avancée renvoie davantage de lumière vers l'espace, ce qui refroidit encore : " +
+      "la rétroaction de l'albédo s'emballe et la planète bascule.",
+    faits: [
+      { t: "Dépôts glaciaires retrouvés à des paléolatitudes inférieures à 10°.", s: "Hoffman et al. 1998, Science" },
+      { t: "Sortie de crise par accumulation de CO₂ volcanique, l'altération des roches étant bloquée sous la glace.", s: "Hoffman & Schrag 2002, Terra Nova" },
+    ],
+    avertissement: "Animation schématique : l'englacement s'est étalé sur des millions d'années.",
+  },
+];
+
+/* ---------------------------------------------------------------------
    8. PARCOURS — « Comprendre en 10 minutes »
    Huit stations. Une thèse : la vitesse. Une fin : le pouvoir d'agir.
    C'est la porte d'entrée de l'application ; les 17 chapitres sont

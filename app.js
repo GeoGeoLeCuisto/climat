@@ -9,7 +9,7 @@ import {
   CO2_PHANEROZOIQUE, CYCLES_GLACIAIRES, KEELING, TEMPERATURE_MODERNE, EMISSIONS,
   SCENARIOS, SCENARIO_SOURCE, CONSEQUENCES, REGIONS,
   CADRE_PHYSIQUE, LEVIERS, LEVIERS_SOURCE, FOCUS_CIMENT, IDEES_RECUES, METHODE, NARRATIONS,
-  PARCOURS, AGIR,
+  PARCOURS, AGIR, SURFACES, EVENEMENTS,
 } from "./data.js";
 
 /* =====================================================================
@@ -197,8 +197,12 @@ function facteurLatitude(lat) {
   return lerp(0.85, 1.25, (a - 25) / 15);
 }
 
-function couleurCase(lat, terre, anom) {
-  const a = anom * facteurLatitude(lat) * (terre ? 1.4 : 1.0);
+/* Sur un monde entièrement océanique, l'amplification zonale n'a plus de
+   justification physique : elle repose sur le contraste terre-mer et sur la
+   rétroaction de la banquise. On l'y neutralise plutôt que de peindre un
+   gradient qui n'aurait aucun fondement. */
+function couleurCase(lat, terre, anom, zonal = true) {
+  const a = anom * (zonal ? facteurLatitude(lat) : 1) * (terre ? 1.4 : 1.0);
   let base = terre ? [50, 66, 48] : [14, 34, 62];
   let cible, t;
   if (a >= 0) { cible = [196, 62, 40]; t = clamp(a / 11, 0, 1) * 0.78; }
@@ -206,14 +210,66 @@ function couleurCase(lat, terre, anom) {
   return `rgb(${Math.round(lerp(base[0], cible[0], t))},${Math.round(lerp(base[1], cible[1], t))},${Math.round(lerp(base[2], cible[2], t))})`;
 }
 
-function dessinerTexture(anom, age = null) {
-  cheminTerres = cheminPourAge(age);
+/** Générateur pseudo-aléatoire à graine : le magma ne doit pas scintiller. */
+function graine(s) {
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+/** Hadéen : océan de magma. Aucun continent — il n'y en avait pas. */
+function dessinerMagma(intensite = 1) {
+  const r = graine(20260728);
+  const fond = tctx.createLinearGradient(0, 0, 0, TH);
+  fond.addColorStop(0, "#1a0803"); fond.addColorStop(0.5, "#2b1006"); fond.addColorStop(1, "#1a0803");
+  tctx.fillStyle = fond; tctx.fillRect(0, 0, TW, TH);
+
+  // plaques de croûte refroidie
+  for (let i = 0; i < 160; i++) {
+    const x = r() * TW, y = r() * TH, w = 60 + r() * 260, h = 40 + r() * 150;
+    tctx.fillStyle = `rgba(12,6,4,${0.25 + r() * 0.4})`;
+    tctx.beginPath(); tctx.ellipse(x, y, w, h, r() * 3, 0, 7); tctx.fill();
+  }
+  // fractures incandescentes entre les plaques
+  tctx.lineCap = "round";
+  for (let i = 0; i < 520; i++) {
+    const x0 = r() * TW, y0 = r() * TH;
+    const n = 3 + Math.floor(r() * 5);
+    let x = x0, y = y0;
+    const chaleur = r();
+    tctx.beginPath(); tctx.moveTo(x, y);
+    for (let k = 0; k < n; k++) {
+      x += (r() - 0.5) * 190; y += (r() - 0.5) * 110;
+      tctx.lineTo(x, y);
+    }
+    const a = (0.22 + chaleur * 0.7) * intensite;
+    tctx.strokeStyle = chaleur > 0.72
+      ? `rgba(255,236,170,${a})` : chaleur > 0.4
+      ? `rgba(255,146,42,${a})` : `rgba(196,58,14,${a})`;
+    tctx.lineWidth = 1 + chaleur * 5;
+    tctx.stroke();
+  }
+  // lacs de lave
+  for (let i = 0; i < 42; i++) {
+    const x = r() * TW, y = r() * TH, rr = 12 + r() * 46;
+    const g = tctx.createRadialGradient(x, y, 0, x, y, rr);
+    g.addColorStop(0, `rgba(255,244,205,${0.85 * intensite})`);
+    g.addColorStop(0.4, `rgba(255,140,36,${0.6 * intensite})`);
+    g.addColorStop(1, "rgba(255,110,20,0)");
+    tctx.fillStyle = g; tctx.beginPath(); tctx.arc(x, y, rr, 0, 7); tctx.fill();
+  }
+  if (texture) texture.needsUpdate = true;
+}
+
+function dessinerTexture(anom, age = null, surface = null, latGlaceForcee = null) {
+  if (surface === "magma") { dessinerMagma(); return; }
+  // « ocean » : monde océanique, aucune terre représentée — leur position est inconnue
+  cheminTerres = surface === "ocean" ? null : cheminPourAge(age);
   const pas = 4;
 
+  const zonal = surface !== "ocean";
   // océan
   for (let y = 0; y < TH; y += pas) {
     const lat = 90 - (y / TH) * 180;
-    tctx.fillStyle = couleurCase(lat, false, anom);
+    tctx.fillStyle = couleurCase(lat, false, anom, zonal);
     tctx.fillRect(0, y, TW, pas);
   }
   // terres
@@ -221,7 +277,7 @@ function dessinerTexture(anom, age = null) {
     tctx.save(); tctx.clip(cheminTerres);
     for (let y = 0; y < TH; y += pas) {
       const lat = 90 - (y / TH) * 180;
-      tctx.fillStyle = couleurCase(lat, true, anom);
+      tctx.fillStyle = couleurCase(lat, true, anom, zonal);
       tctx.fillRect(0, y, TW, pas);
     }
     tctx.restore();
@@ -232,7 +288,7 @@ function dessinerTexture(anom, age = null) {
   }
 
   // glace — limite illustrative : latLimite = 70 + 4 × anomalie globale
-  const latLim = clamp(70 + 4 * anom, 24, 93);
+  const latLim = latGlaceForcee !== null ? latGlaceForcee : clamp(70 + 4 * anom, 24, 93);
   if (latLim < 90) {
     for (const signe of [1, -1]) {
       const marge = signe > 0 ? 0 : 6;      // l'hémisphère sud englace un peu moins tôt
@@ -267,7 +323,7 @@ function dessinerTexture(anom, age = null) {
 /* =====================================================================
    4. SCÈNE THREE.JS
    ===================================================================== */
-let renderer, scene, camera, globe, texture, atmos, groupeMarqueurs, etoiles;
+let renderer, scene, camera, globe, texture, atmos, groupeMarqueurs, etoiles, soleil;
 const cam = { azim: 0.6, polar: 1.35, dist: 3.2, cibleDist: 3.2 };
 let raycaster, souris = new THREE.Vector2(-10, -10), tip;
 
@@ -323,7 +379,7 @@ function initScene() {
   scene.add(atmos);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const soleil = new THREE.DirectionalLight(0xfff2e0, 1.45);
+  soleil = new THREE.DirectionalLight(0xfff2e0, 1.45);
   soleil.position.set(4, 1.6, 2.4);
   scene.add(soleil);
   const contre = new THREE.DirectionalLight(0x4a7fd0, 0.35);
@@ -332,6 +388,7 @@ function initScene() {
 
   groupeMarqueurs = new THREE.Group();
   scene.add(groupeMarqueurs);
+  initEvenements();
 
   raycaster = new THREE.Raycaster();
   tip = document.createElement("div");
@@ -443,6 +500,12 @@ function animer() {
   if (S.autoRotation && !S.lecture) cam.azim += dt * 0.045;
   cam.dist += (cam.cibleDist - cam.dist) * Math.min(dt * 5, 1);
 
+  if (EVT) animerEvenement(now);
+  else if (lune && lune.visible) {
+    const a = now / 9000;
+    lune.position.set(Math.cos(a) * 4.2, 0.32, Math.sin(a) * 4.2);
+  }
+
   camera.position.set(
     cam.dist * Math.sin(cam.polar) * Math.cos(cam.azim),
     cam.dist * Math.cos(cam.polar),
@@ -479,26 +542,270 @@ window.__CLIMAT = { S, cam, get images() { return images; },
   main: (lm, prec) => analyserMain(lm, prec), zoom: e => niveauZoom(e), narration: () => N };
 
 /* =====================================================================
+   4 bis. ÉVÉNEMENTS ANIMÉS
+   Reconstitutions schématiques : trajectoires, vitesses et durées sont
+   illustratives. L'avertissement reste affiché pendant toute l'animation.
+   ===================================================================== */
+let lune, theia, debris, flash, anneauChoc, patchLave, impacteur;
+let EVT = null;                                   // { def, t0, tTexture }
+
+function spriteLueur(couleurs, taille = 128) {
+  const c = document.createElement("canvas"); c.width = c.height = taille;
+  const x = c.getContext("2d");
+  const g = x.createRadialGradient(taille / 2, taille / 2, 0, taille / 2, taille / 2, taille / 2);
+  couleurs.forEach(([p, col]) => g.addColorStop(p, col));
+  x.fillStyle = g; x.fillRect(0, 0, taille, taille);
+  return new THREE.CanvasTexture(c);
+}
+
+function initEvenements() {
+  // Lune — taille réelle relative (0,273 rayon terrestre), distance NON à l'échelle
+  const texLune = document.createElement("canvas");
+  texLune.width = texLune.height = 256;
+  const lx = texLune.getContext("2d");
+  lx.fillStyle = "#9a9690"; lx.fillRect(0, 0, 256, 256);
+  const rl = graine(4510);
+  for (let i = 0; i < 300; i++) {
+    const x = rl() * 256, y = rl() * 256, r = 1 + rl() * 11;
+    lx.fillStyle = `rgba(${rl() > .5 ? 120 : 175},${rl() > .5 ? 118 : 172},${115 + rl() * 55},${.25 + rl() * .5})`;
+    lx.beginPath(); lx.arc(x, y, r, 0, 7); lx.fill();
+  }
+  lune = new THREE.Mesh(
+    new THREE.SphereGeometry(0.273, 40, 28),
+    new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(texLune), roughness: 1 })
+  );
+  lune.userData = { nom: "La Lune", note: "Taille relative réelle, distance très réduite pour l'affichage (en réalité 60 rayons terrestres)" };
+  scene.add(lune);
+
+  theia = new THREE.Mesh(
+    new THREE.SphereGeometry(0.53, 40, 28),
+    new THREE.MeshStandardMaterial({ color: 0x6b3a24, emissive: 0x3a1206, roughness: .95 })
+  );
+  theia.visible = false; scene.add(theia);
+
+  const N = 1800, pos = new Float32Array(N * 3);
+  debris = new THREE.Points(
+    new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(pos, 3)),
+    new THREE.PointsMaterial({ color: 0xffb066, size: .035, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  debris.visible = false; scene.add(debris);
+
+  flash = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: spriteLueur([[0, "rgba(255,255,245,1)"], [.25, "rgba(255,226,150,.9)"], [.6, "rgba(255,140,50,.35)"], [1, "rgba(255,120,40,0)"]]),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
+  }));
+  flash.visible = false; scene.add(flash);
+
+  anneauChoc = new THREE.Mesh(
+    new THREE.RingGeometry(0.98, 1, 96),
+    new THREE.MeshBasicMaterial({ color: 0xffd08a, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false })
+  );
+  anneauChoc.visible = false; scene.add(anneauChoc);
+
+  patchLave = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: spriteLueur([[0, "rgba(255,240,190,.95)"], [.35, "rgba(255,110,30,.7)"], [1, "rgba(190,40,10,0)"]]),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  patchLave.visible = false; scene.add(patchLave);
+
+  impacteur = new THREE.Mesh(
+    new THREE.SphereGeometry(0.035, 16, 12),
+    new THREE.MeshBasicMaterial({ color: 0xfff0c0 })
+  );
+  impacteur.visible = false; scene.add(impacteur);
+}
+
+function evenementDe(chapitreId) { return EVENEMENTS.find(e => e.chapitre === chapitreId) || null; }
+
+function lancerEvenement(id) {
+  const def = EVENEMENTS.find(e => e.id === id);
+  if (!def) return;
+  const ch = CHAPITRES.find(c => c.id === def.chapitre);
+  if (ch && S.chapitre !== ch) allerA(anneeVersP(ch.annee), true);
+  S.autoRotation = false;
+  S.lecture && basculerLecture(false);
+  cam.cibleDist = id === "lune" ? 6.2 : 3.1;
+  EVT = { def, t0: performance.now(), tTexture: 0 };
+  $("#evQuand").textContent = def.quand;
+  $("#evNom").textContent = def.nom;
+  $("#evAvert").textContent = def.avertissement;
+  $("#evenement").classList.remove("hidden");
+}
+
+function arreterEvenement() {
+  EVT = null;
+  [theia, debris, flash, anneauChoc, patchLave, impacteur].forEach(o => { if (o) o.visible = false; });
+  if (lune) lune.visible = true;
+  soleil.intensity = 1.45;
+  $("#evenement").classList.add("hidden");
+  dernierAnom = null; dernierAge = undefined; dernierSurface = undefined;
+  allerA(S.p, true);
+}
+
+function phaseEvenement(txt, p) {
+  $("#evPhase").textContent = txt;
+  $("#evProgres").style.width = Math.round(p * 100) + "%";
+}
+
+function pointSurface(lat, lon, r) { return latLonVersVec3(lat, lon, r); }
+
+function animerEvenement(now) {
+  const { def, t0 } = EVT;
+  const p = clamp((now - t0) / def.duree, 0, 1);
+
+  if (def.id === "lune") {
+    lune.visible = p > 0.62;
+    if (p < 0.38) {
+      // approche de Théia
+      const f = p / 0.38;
+      theia.visible = true;
+      theia.position.set(lerp(-7.5, -1.05, f * f), lerp(2.6, 0.28, f * f), lerp(4.2, 0.5, f * f));
+      phaseEvenement("Un corps de la taille de Mars approche", p);
+    } else if (p < 0.46) {
+      // impact
+      theia.visible = false;
+      flash.visible = true;
+      const f = (p - 0.38) / 0.08;
+      flash.scale.setScalar(1.2 + f * 9);
+      flash.material.opacity = 1 - f;
+      soleil.intensity = 1.45 + (1 - f) * 3.5;
+      phaseEvenement("Impact — la Terre est refondue", p);
+    } else if (p < 0.78) {
+      // disque de débris en orbite
+      flash.visible = false;
+      soleil.intensity = 1.45;
+      debris.visible = true;
+      const f = (p - 0.46) / 0.32;
+      const pos = debris.geometry.attributes.position.array;
+      const r = graine(777);
+      for (let i = 0; i < pos.length / 3; i++) {
+        const a = (i / (pos.length / 3)) * Math.PI * 2 * 7 + f * 5.5;
+        const rad = lerp(1.25, 2.4, ((i * 37) % 100) / 100) * (0.65 + f * 0.5);
+        const h = (((i * 61) % 100) / 100 - 0.5) * 0.55 * (1 - f * 0.75);
+        pos[i * 3] = Math.cos(a) * rad;
+        pos[i * 3 + 1] = h;
+        pos[i * 3 + 2] = Math.sin(a) * rad;
+      }
+      debris.geometry.attributes.position.needsUpdate = true;
+      debris.material.opacity = 0.9;
+      phaseEvenement("Un disque de débris se met en orbite", p);
+    } else {
+      // accrétion de la Lune
+      const f = (p - 0.78) / 0.22;
+      debris.material.opacity = 0.9 * (1 - f);
+      debris.visible = f < 0.98;
+      phaseEvenement("Les débris s'accrètent : la Lune se forme", p);
+    }
+    if (lune.visible) {
+      const a = now / 2600;
+      lune.position.set(Math.cos(a) * 4.2, 0.32, Math.sin(a) * 4.2);
+    }
+
+  } else if (def.id === "chicxulub") {
+    const cible = pointSurface(def.lat, def.lon, 1);
+    if (p < 0.34) {
+      const f = p / 0.34;
+      impacteur.visible = true;
+      const depart = cible.clone().multiplyScalar(4.2).add(new THREE.Vector3(1.6, 2.2, 0));
+      impacteur.position.lerpVectors(depart, cible.clone().multiplyScalar(1.02), f * f);
+      phaseEvenement("Un astéroïde de 10 km, à 20 km par seconde", p);
+    } else if (p < 0.44) {
+      const f = (p - 0.34) / 0.10;
+      impacteur.visible = false;
+      flash.visible = true;
+      flash.position.copy(cible.clone().multiplyScalar(1.05));
+      flash.scale.setScalar(0.4 + f * 3.2);
+      flash.material.opacity = 1 - f;
+      soleil.intensity = 1.45 + (1 - f) * 2.6;
+      phaseEvenement("Impact au large du Yucatán", p);
+    } else {
+      const f = (p - 0.44) / 0.56;
+      flash.visible = false;
+      anneauChoc.visible = true;
+      anneauChoc.position.copy(cible.clone().multiplyScalar(1.005));
+      anneauChoc.lookAt(0, 0, 0);
+      anneauChoc.scale.setScalar(0.05 + f * 2.6);
+      anneauChoc.material.opacity = 0.85 * (1 - f);
+      // hiver d'impact : la lumière s'effondre puis remonte lentement
+      soleil.intensity = f < 0.45 ? lerp(1.45, 0.22, f / 0.45) : lerp(0.22, 0.75, (f - 0.45) / 0.55);
+      phaseEvenement(f < 0.5 ? "Poussières et aérosols voilent le Soleil" : "Hiver d'impact : la photosynthèse s'effondre", p);
+    }
+
+  } else if (def.id === "trapps") {
+    const cible = pointSurface(def.lat, def.lon, 1);
+    patchLave.visible = true;
+    patchLave.position.copy(cible.clone().multiplyScalar(1.03));
+    patchLave.scale.setScalar(0.25 + p * 1.65 + Math.sin(now / 190) * 0.06);
+    patchLave.material.opacity = 0.55 + Math.sin(now / 250) * 0.2;
+    atmos.material.uniforms.teinte.value.setHex(0xff7a3a);
+    soleil.intensity = 1.45 - p * 0.5;
+    phaseEvenement(p < 0.5 ? "La province magmatique s'ouvre en Sibérie"
+                           : "Le magma traverse d'anciens bassins de charbon et les brûle", p);
+
+  } else if (def.id === "boule") {
+    // l'englacement descend des pôles vers les tropiques
+    const lat = lerp(72, 8, p);
+    if (now - EVT.tTexture > 130) {
+      EVT.tTexture = now;
+      dessinerTexture(lerp(-4, -35, p), ageReconstruction(700), null, lat);
+    }
+    atmos.material.uniforms.teinte.value.setHex(0xbfe4ff);
+    phaseEvenement(p < 0.45 ? `La glace descend — limite vers ${Math.round(lat)}° de latitude`
+                            : "L'albédo s'emballe : la Terre bascule", p);
+
+  } else if (def.id === "oxydation") {
+    const c = new THREE.Color(0xd98a3a).lerp(new THREE.Color(0x6fa8d8), p);
+    atmos.material.uniforms.teinte.value.copy(c);
+    if (now - EVT.tTexture > 150) {
+      EVT.tTexture = now;
+      dessinerTexture(lerp(2, -8, p), null, "ocean");
+    }
+    phaseEvenement(p < 0.5 ? "L'oxygène monte : la brume de méthane se dissipe"
+                           : "L'effet de serre s'effondre, la glace gagne", p);
+  }
+
+  if (p >= 1) setTimeout(arreterEvenement, 900);
+}
+
+/* =====================================================================
    5. NAVIGATION TEMPORELLE
    ===================================================================== */
+/* Les plages se recouvrent aux bornes : le Crétacé finit à 66 Ma, précisément
+   l'année du K-Pg. Renvoyer le premier chapitre trouvé rendait les chapitres
+   courts (K-Pg, PETM, Permien-Trias) inatteignables, masqués par le long
+   chapitre qui les encadre. On retient donc le plus SPÉCIFIQUE : à égalité de
+   couverture, la plage la plus étroite gagne. */
 function chapitrePour(annee) {
+  let contenant = null, span = Infinity;
+  for (const c of CHAPITRES) {
+    if (annee >= c.plage[0] && annee <= c.plage[1]) {
+      const s = c.plage[1] - c.plage[0];
+      if (s < span) { span = s; contenant = c; }
+    }
+  }
+  if (contenant) return contenant;
   let best = CHAPITRES[0], d = Infinity;
   for (const c of CHAPITRES) {
-    if (annee >= c.plage[0] && annee <= c.plage[1]) return c;
     const dd = Math.min(Math.abs(annee - c.plage[0]), Math.abs(annee - c.plage[1]));
     if (dd < d) { d = dd; best = c; }
   }
   return best;
 }
 
-let dernierAnom = null, dernierAge = undefined, tRedessin = 0;
+let dernierAnom = null, dernierAge = undefined, dernierSurface = undefined, tRedessin = 0;
 
 /** Le badge sous le globe dit toujours ce qu'on regarde et ce qu'on ignore. */
-function majBadgeGlobe(ageGeo, ageMa) {
+function majBadgeGlobe(ageGeo, ageMa, surf = null) {
   const el = $("#globeBadge");
   if (!el) return;
   const modele = PALEO_SOURCE ? PALEO_SOURCE.modele : "—";
-  if (ageGeo === null) {
+  if (surf) {
+    el.innerHTML =
+      `<b>${surf.titre}</b> — aucun continent n'est représenté, et c'est volontaire : ` +
+      `aucun modèle publié ne reconstitue leur position au-delà de 1 milliard d'années. ` +
+      `<span class="badge-alerte">Afficher la géographie actuelle ici serait faux.</span> ` +
+      `${META.avertissementChamp}`;
+  } else if (ageGeo === null) {
     const horsModele = PALEO_AGES.length && ageMa > PALEO_AGES[PALEO_AGES.length - 1];
     el.innerHTML = horsModele
       ? `<b>Géographie actuelle affichée par défaut</b> — aucune reconstruction publiée ne remonte au-delà de ` +
@@ -535,17 +842,22 @@ function allerA(p, force = false) {
   const st = $("#fiStatut");
   st.innerHTML = `<span class="badge ${ch.statut}">${libelleStatut(ch.statut)}</span>`;
 
-  // globe : on ne redessine que si la température OU la géographie ont changé
+  // globe : on ne redessine que si température, géographie OU surface ont changé
   const ageMa = (2025 - annee) / 1e6;
   const ageGeo = ageReconstruction(ageMa);
-  if (force || dernierAnom === null || ageGeo !== dernierAge || Math.abs(ch.tAnom - dernierAnom) > 0.01) {
+  const surf = SURFACES[ch.id] || null;
+  const typeSurf = surf ? surf.type : null;
+  if (!EVT && (force || dernierAnom === null || ageGeo !== dernierAge ||
+      typeSurf !== dernierSurface || Math.abs(ch.tAnom - dernierAnom) > 0.01)) {
     const maintenant = performance.now();
-    if (force || ageGeo !== dernierAge || maintenant - tRedessin > 90) {
-      tRedessin = maintenant; dernierAnom = ch.tAnom; dernierAge = ageGeo;
-      dessinerTexture(ch.tAnom, ageGeo);
+    if (force || ageGeo !== dernierAge || typeSurf !== dernierSurface || maintenant - tRedessin > 90) {
+      tRedessin = maintenant; dernierAnom = ch.tAnom; dernierAge = ageGeo; dernierSurface = typeSurf;
+      const anomAff = surf && surf.anomAffichee !== undefined ? surf.anomAffichee : ch.tAnom;
+      dessinerTexture(anomAff, ageGeo, typeSurf);
       atmos.material.uniforms.teinte.value.setHex(
-        ch.tAnom > 3 ? 0xff8a5c : ch.tAnom < -3 ? 0x9fd8ff : 0x4fa8ff);
-      majBadgeGlobe(ageGeo, ageMa);
+        surf ? surf.hazeCouleur
+             : ch.tAnom > 3 ? 0xff8a5c : ch.tAnom < -3 ? 0x9fd8ff : 0x4fa8ff);
+      majBadgeGlobe(ageGeo, ageMa, surf);
     }
   }
 
@@ -608,6 +920,7 @@ function initUI() {
   $("#btnGestes").onclick = () => basculerGestes(!S.gestes);
   initNarration();
   $("#btnAide").onclick = ouvrirAide;
+  $("#evStop").onclick = arreterEvenement;
   $("#camClose").onclick = () => basculerGestes(false);
   $("#modaleClose").onclick = () => $("#modale").classList.add("hidden");
   $("#modale").onclick = e => { if (e.target.id === "modale") $("#modale").classList.add("hidden"); };
@@ -792,6 +1105,9 @@ function vueHistoire() {
       <span style="font-size:10px;color:var(--texte-faible);margin-left:6px">écarts vs 1850-1900</span>
     </div>
 
+    ${blocSurface(c)}
+    ${blocEvenement(c)}
+
     <div class="c-recit">${c.recit.map(p => `<p>${p}</p>`).join("")}</div>
 
     <div class="c-h">Le récit, à voix haute</div>
@@ -816,6 +1132,32 @@ function vueHistoire() {
           <div style="font-size:11.4px;color:var(--texte-faible);margin-top:3px">${m.note}</div>
         </div>`).join("")}` : ""}
   `;
+}
+
+/** Explique ce que le globe montre — et ne montre pas — en temps profond. */
+function blocSurface(c) {
+  const s = SURFACES[c.id];
+  if (!s) return "";
+  return `
+    <div class="surface-bloc">
+      <div class="surface-head"><span class="surface-pastille"></span>
+        <b>Ce que montre le globe : ${s.titre.toLowerCase()}</b></div>
+      <div class="surface-quoi">${s.quoi}</div>
+      ${s.faits.map(f => `<div class="pt"><div class="pt-t">${f.t}</div><div class="pt-s">${f.s}</div></div>`).join("")}
+    </div>`;
+}
+
+function blocEvenement(c) {
+  const e = evenementDe(c.id);
+  if (!e) return "";
+  return `
+    <div class="evt-bloc">
+      <button class="btn-evt" data-evt="${e.id}">▶ Voir l'événement : ${e.nom}</button>
+      <div class="evt-quand">${e.quand}</div>
+      <div class="evt-resume">${e.resume}</div>
+      ${e.faits.map(f => `<div class="pt"><div class="pt-t">${f.t}</div><div class="pt-s">${f.s}</div></div>`).join("")}
+      <div class="evt-avert">⚠ ${e.avertissement}</div>
+    </div>`;
 }
 
 function grapheDuChapitre(c) {
@@ -1050,6 +1392,9 @@ function brancherContenu() {
       S.mode = el.dataset.va; majModes(); rendreContenu();
     });
   }
+
+  // lancer un événement animé
+  $$("[data-evt]").forEach(el => el.onclick = () => lancerEvenement(el.dataset.evt));
 
   // écouter le chapitre courant
   const ecouter = $("#btnEcouter");
