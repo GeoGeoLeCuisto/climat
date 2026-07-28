@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Systeme
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editeurs
+.vscode/
+.idea/
+
+# ATTENTION : ne jamais remonter d'un niveau.
+# Le dossier parent contient des donnees professionnelles qui n'ont
+# rien a faire dans un depot public. Ce depot commence et s'arrete ici.

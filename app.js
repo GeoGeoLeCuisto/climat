@@ -1,0 +1,1803 @@
+/* =====================================================================
+   CLIMAT — app.js
+   Globe 3D + frise chronologique + pilotage gestuel par la caméra.
+   ===================================================================== */
+
+import * as THREE from "three";
+import {
+  META, CHAPITRES, pVersAnnee, anneeVersP, formatAnnee,
+  CO2_PHANEROZOIQUE, CYCLES_GLACIAIRES, KEELING, TEMPERATURE_MODERNE, EMISSIONS,
+  SCENARIOS, SCENARIO_SOURCE, CONSEQUENCES, REGIONS,
+  CADRE_PHYSIQUE, LEVIERS, LEVIERS_SOURCE, FOCUS_CIMENT, IDEES_RECUES, METHODE, NARRATIONS,
+  PARCOURS, AGIR,
+} from "./data.js";
+
+/* =====================================================================
+   ÉTAT GLOBAL
+   ===================================================================== */
+const S = {
+  p: anneeVersP(CHAPITRES[0].annee),   // position sur la frise, 0..1
+  chapitre: CHAPITRES[0],
+  mode: "parcours",
+  station: 0,
+  lecture: false,
+  gestes: false,
+  geste: "aucun",
+  gesteConf: 0,
+  autoRotation: true,
+  scenario: "ssp245",
+  leviers: Object.fromEntries(LEVIERS.map(l => [l.id, l.defaut])),
+};
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const fr = (n, d = 1) => n.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/* =====================================================================
+   1. DÉMARRAGE
+   ===================================================================== */
+const bootBar = $("#bootBar"), bootStatus = $("#bootStatus");
+function boot(pct, txt) { bootBar.style.width = pct + "%"; bootStatus.textContent = txt; }
+
+(async function demarrer() {
+  try {
+    boot(8, "Chargement de la géographie actuelle…");
+    await chargerTerres();
+    boot(28, "Chargement des reconstructions paléogéographiques…");
+    await chargerPaleo();
+    boot(46, "Construction du globe…");
+    initScene();
+    boot(72, "Préparation de l'interface…");
+    initUI();
+    boot(90, "Mise en place de la chronologie…");
+    allerStation(0);
+    boot(100, "Prêt");
+    await new Promise(r => setTimeout(r, 380));
+    $("#boot").classList.add("out");
+    $("#app").classList.remove("hidden");
+    redimensionner();
+    setTimeout(() => $("#boot").remove(), 700);
+    animer();
+  } catch (e) {
+    console.error(e);
+    bootStatus.innerHTML = "Erreur au démarrage :<br>" + e.message +
+      "<br><br>Vérifiez la connexion (les bibliothèques sont chargées depuis un CDN).";
+  }
+})();
+
+/* =====================================================================
+   2. GÉOGRAPHIE — décodage TopoJSON minimal
+   Source du fichier : world-atlas (Natural Earth 110m), domaine public.
+   ===================================================================== */
+let ANNEAUX = [];   // tableau de polygones [[lon,lat], ...]
+let geoOK = false;
+
+async function chargerTerres() {
+  const urls = [
+    "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/land-110m.json",
+    "https://unpkg.com/world-atlas@2.0.2/land-110m.json",
+  ];
+  for (const u of urls) {
+    try {
+      const r = await fetch(u, { cache: "force-cache" });
+      if (!r.ok) continue;
+      const topo = await r.json();
+      ANNEAUX = decoderTopo(topo, "land");
+      geoOK = ANNEAUX.length > 0;
+      if (geoOK) return;
+    } catch (e) { /* on essaie l'URL suivante */ }
+  }
+  console.warn("Géographie indisponible : le globe sera rendu sans continents.");
+}
+
+/* --- Paléogéographie : positions reconstituées des continents ---------
+   Fichier généré par outils/recuperer_paleogeographie.py à partir du
+   GPlates Web Service. Import dynamique : si le fichier est absent,
+   l'application fonctionne, en géographie actuelle uniquement.        */
+let PALEO = null, PALEO_AGES = [], PALEO_SOURCE = null;
+
+async function chargerPaleo() {
+  try {
+    const m = await import("./paleo.js");
+    PALEO = m.PALEO; PALEO_AGES = m.PALEO_AGES; PALEO_SOURCE = m.PALEO_SOURCE;
+  } catch (e) {
+    console.warn("Paléogéographie indisponible — géographie actuelle utilisée partout.", e.message);
+  }
+}
+
+/** Âge de reconstruction à afficher, en Ma. `null` = géographie actuelle. */
+const AGE_MODERNE_MAX = 2.5;                 // sous ce seuil, la carte actuelle suffit
+function ageReconstruction(ageMa) {
+  if (!PALEO || !PALEO_AGES.length) return null;
+  if (ageMa <= AGE_MODERNE_MAX) return null;
+  if (ageMa > PALEO_AGES[PALEO_AGES.length - 1]) return null;   // au-delà du modèle
+  let best = PALEO_AGES[0], d = Infinity;
+  for (const a of PALEO_AGES) {
+    const dd = Math.abs(a - ageMa);
+    if (dd < d) { d = dd; best = a; }
+  }
+  return best;
+}
+
+function decoderTopo(topo, nom) {
+  const [sx, sy] = topo.transform.scale, [tx, ty] = topo.transform.translate;
+  const arcs = topo.arcs.map(arc => {
+    let x = 0, y = 0;
+    return arc.map(d => { x += d[0]; y += d[1]; return [x * sx + tx, y * sy + ty]; });
+  });
+  const anneau = idx => {
+    const pts = [];
+    for (const i of idx) {
+      let a = i < 0 ? arcs[~i].slice().reverse() : arcs[i];
+      if (pts.length) a = a.slice(1);
+      pts.push(...a);
+    }
+    return pts;
+  };
+  const obj = topo.objects[nom];
+  const out = [];
+  const pousser = poly => poly.forEach(ring => out.push(anneau(ring)));
+  if (obj.type === "MultiPolygon") obj.arcs.forEach(pousser);
+  else if (obj.type === "Polygon") pousser(obj.arcs);
+  else if (obj.type === "GeometryCollection") obj.geometries.forEach(g => {
+    if (g.type === "MultiPolygon") g.arcs.forEach(pousser);
+    else if (g.type === "Polygon") pousser(g.arcs);
+  });
+  return out;
+}
+
+/* =====================================================================
+   3. TEXTURE DU GLOBE
+   ATTENTION : rendu illustratif. Voir METHODE.modeleZonal — le champ de
+   couleur est un modèle zonal simplifié, pas une carte de données.
+   ===================================================================== */
+const TW = 2048, TH = 1024;
+const texCanvas = document.createElement("canvas");
+texCanvas.width = TW; texCanvas.height = TH;
+const tctx = texCanvas.getContext("2d");
+let cheminTerres = null;
+const cacheChemins = new Map();               // clé : "moderne" ou l'âge en Ma
+
+function construireChemin(anneaux) {
+  const p = new Path2D();
+  for (const ring of anneaux) {
+    if (ring.length < 3) continue;
+    let precX = null;
+    ring.forEach(([lon, lat], i) => {
+      const x = (lon + 180) / 360 * TW, y = (90 - lat) / 180 * TH;
+      // coupe à l'antiméridien pour éviter les traits horizontaux parasites
+      if (i === 0 || (precX !== null && Math.abs(x - precX) > TW * 0.5)) p.moveTo(x, y);
+      else p.lineTo(x, y);
+      precX = x;
+    });
+    p.closePath();
+  }
+  return p;
+}
+
+/** Chemin des terres pour un âge donné (null = géographie actuelle). */
+function cheminPourAge(age) {
+  const cle = age === null ? "moderne" : age;
+  if (cacheChemins.has(cle)) return cacheChemins.get(cle);
+  const anneaux = age === null ? ANNEAUX : (PALEO && PALEO[age]) || [];
+  const p = anneaux.length ? construireChemin(anneaux) : null;
+  cacheChemins.set(cle, p);
+  return p;
+}
+
+/** Facteur d'amplification zonal — GIEC AR6 WG1 (structure, pas donnée). */
+function facteurLatitude(lat) {
+  const a = Math.abs(lat);
+  if (lat > 66) return lerp(2.0, 3.0, clamp((lat - 66) / 24, 0, 1));   // Arctique
+  if (lat > 40) return lerp(1.25, 2.0, (lat - 40) / 26);
+  if (a <= 25) return 0.85;                                             // tropiques
+  if (lat < -55) return lerp(0.9, 0.6, clamp((-lat - 55) / 25, 0, 1));  // océan Austral
+  return lerp(0.85, 1.25, (a - 25) / 15);
+}
+
+function couleurCase(lat, terre, anom) {
+  const a = anom * facteurLatitude(lat) * (terre ? 1.4 : 1.0);
+  let base = terre ? [50, 66, 48] : [14, 34, 62];
+  let cible, t;
+  if (a >= 0) { cible = [196, 62, 40]; t = clamp(a / 11, 0, 1) * 0.78; }
+  else { cible = [150, 200, 238]; t = clamp(-a / 11, 0, 1) * 0.72; }
+  return `rgb(${Math.round(lerp(base[0], cible[0], t))},${Math.round(lerp(base[1], cible[1], t))},${Math.round(lerp(base[2], cible[2], t))})`;
+}
+
+function dessinerTexture(anom, age = null) {
+  cheminTerres = cheminPourAge(age);
+  const pas = 4;
+
+  // océan
+  for (let y = 0; y < TH; y += pas) {
+    const lat = 90 - (y / TH) * 180;
+    tctx.fillStyle = couleurCase(lat, false, anom);
+    tctx.fillRect(0, y, TW, pas);
+  }
+  // terres
+  if (cheminTerres) {
+    tctx.save(); tctx.clip(cheminTerres);
+    for (let y = 0; y < TH; y += pas) {
+      const lat = 90 - (y / TH) * 180;
+      tctx.fillStyle = couleurCase(lat, true, anom);
+      tctx.fillRect(0, y, TW, pas);
+    }
+    tctx.restore();
+    tctx.save();
+    tctx.strokeStyle = "rgba(255,255,255,.18)"; tctx.lineWidth = 1.1;
+    tctx.stroke(cheminTerres);
+    tctx.restore();
+  }
+
+  // glace — limite illustrative : latLimite = 70 + 4 × anomalie globale
+  const latLim = clamp(70 + 4 * anom, 24, 93);
+  if (latLim < 90) {
+    for (const signe of [1, -1]) {
+      const marge = signe > 0 ? 0 : 6;      // l'hémisphère sud englace un peu moins tôt
+      const lim = clamp(latLim + marge, 24, 93);
+      for (let y = 0; y < TH; y += 2) {
+        const lat = 90 - (y / TH) * 180;
+        if (signe > 0 ? lat < lim : lat > -lim) continue;
+        const inten = clamp((Math.abs(lat) - lim) / 14, 0, 1);
+        tctx.fillStyle = `rgba(238,246,255,${0.18 + inten * 0.7})`;
+        tctx.fillRect(0, y, TW, 2);
+      }
+    }
+  }
+
+  // grille discrète
+  tctx.strokeStyle = "rgba(255,255,255,.055)"; tctx.lineWidth = 1;
+  for (let lat = -60; lat <= 60; lat += 30) {
+    const y = (90 - lat) / 180 * TH;
+    tctx.beginPath(); tctx.moveTo(0, y); tctx.lineTo(TW, y); tctx.stroke();
+  }
+  for (let lon = -150; lon <= 150; lon += 30) {
+    const x = (lon + 180) / 360 * TW;
+    tctx.beginPath(); tctx.moveTo(x, 0); tctx.lineTo(x, TH); tctx.stroke();
+  }
+  tctx.strokeStyle = "rgba(255,255,255,.11)";
+  const yeq = TH / 2;
+  tctx.beginPath(); tctx.moveTo(0, yeq); tctx.lineTo(TW, yeq); tctx.stroke();
+
+  if (texture) texture.needsUpdate = true;
+}
+
+/* =====================================================================
+   4. SCÈNE THREE.JS
+   ===================================================================== */
+let renderer, scene, camera, globe, texture, atmos, groupeMarqueurs, etoiles;
+const cam = { azim: 0.6, polar: 1.35, dist: 3.2, cibleDist: 3.2 };
+let raycaster, souris = new THREE.Vector2(-10, -10), tip;
+
+function initScene() {
+  const canvas = $("#scene");
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 200);
+
+  // étoiles
+  const N = 2600, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 45 + Math.random() * 45, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+    pos[i * 3 + 1] = r * Math.cos(ph);
+    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  etoiles = new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9fc0e8, size: 0.32, sizeAttenuation: true, transparent: true, opacity: .75 }));
+  scene.add(etoiles);
+
+  // globe
+  dessinerTexture(0);
+  texture = new THREE.CanvasTexture(texCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  globe = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 96, 64),
+    new THREE.MeshStandardMaterial({ map: texture, roughness: .92, metalness: .02 })
+  );
+  scene.add(globe);
+
+  // halo atmosphérique
+  atmos = new THREE.Mesh(
+    new THREE.SphereGeometry(1.055, 64, 48),
+    new THREE.ShaderMaterial({
+      transparent: true, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending,
+      uniforms: { teinte: { value: new THREE.Color(0x4fa8ff) } },
+      vertexShader: `varying vec3 vN; varying vec3 vP;
+        void main(){ vN = normalize(normalMatrix*normal);
+        vec4 mv = modelViewMatrix*vec4(position,1.0); vP = mv.xyz;
+        gl_Position = projectionMatrix*mv; }`,
+      fragmentShader: `varying vec3 vN; varying vec3 vP; uniform vec3 teinte;
+        void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(-vP))), 2.4);
+        gl_FragColor = vec4(teinte, f*0.75); }`,
+    })
+  );
+  scene.add(atmos);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const soleil = new THREE.DirectionalLight(0xfff2e0, 1.45);
+  soleil.position.set(4, 1.6, 2.4);
+  scene.add(soleil);
+  const contre = new THREE.DirectionalLight(0x4a7fd0, 0.35);
+  contre.position.set(-3, -1, -2);
+  scene.add(contre);
+
+  groupeMarqueurs = new THREE.Group();
+  scene.add(groupeMarqueurs);
+
+  raycaster = new THREE.Raycaster();
+  tip = document.createElement("div");
+  Object.assign(tip.style, {
+    position: "fixed", zIndex: 40, pointerEvents: "none", display: "none",
+    background: "rgba(8,13,26,.95)", border: "1px solid rgba(140,190,255,.34)",
+    borderRadius: "9px", padding: "7px 10px", fontSize: "11.5px", maxWidth: "230px",
+    boxShadow: "0 12px 32px rgba(0,0,0,.6)", lineHeight: "1.45",
+  });
+  document.body.appendChild(tip);
+
+  addEventListener("resize", redimensionner);
+  // le panneau peut être masqué au démarrage : on suit sa taille réelle
+  new ResizeObserver(redimensionner).observe(document.body);
+  initControlesSouris(canvas);
+}
+
+let lRendu = 0, hRendu = 0;
+function redimensionner() {
+  const w = Math.max(innerWidth || document.body.clientWidth, 1);
+  const h = Math.max(innerHeight || document.body.clientHeight, 1);
+  if (w === lRendu && h === hRendu) return;
+  lRendu = w; hRendu = h;
+  renderer.setSize(w, h, false);
+  renderer.domElement.style.width = "100%";
+  renderer.domElement.style.height = "100%";
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  // les graphiques du panneau se redessinent à la nouvelle largeur
+  clearTimeout(redimensionner._t);
+  redimensionner._t = setTimeout(() => rendreContenu(true), 220);
+}
+
+function latLonVersVec3(lat, lon, r = 1) {
+  const ph = (90 - lat) * Math.PI / 180, th = (lon + 180) * Math.PI / 180;
+  return new THREE.Vector3(-r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th));
+}
+
+let texMarqueur = null;
+function textureMarqueur() {
+  if (texMarqueur) return texMarqueur;
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const x = c.getContext("2d");
+  const gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)");
+  gr.addColorStop(.28, "rgba(255,200,110,.95)");
+  gr.addColorStop(.55, "rgba(255,150,60,.45)");
+  gr.addColorStop(1, "rgba(255,150,60,0)");
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+  texMarqueur = new THREE.CanvasTexture(c);
+  return texMarqueur;
+}
+
+function poserMarqueurs(liste) {
+  groupeMarqueurs.clear();
+  for (const m of liste) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: textureMarqueur(), transparent: true, depthTest: true, sizeAttenuation: true,
+    }));
+    sp.position.copy(latLonVersVec3(m.lat, m.lon, 1.012));
+    sp.scale.setScalar(0.1);
+    sp.userData = m;
+    groupeMarqueurs.add(sp);
+  }
+}
+
+/* ---------- Contrôles souris / tactile (toujours disponibles) ---------- */
+function initControlesSouris(canvas) {
+  let glisse = false, lx = 0, ly = 0, pincement = null;
+
+  canvas.addEventListener("pointerdown", e => {
+    glisse = true; lx = e.clientX; ly = e.clientY; S.autoRotation = false;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointerup", e => { glisse = false; });
+  canvas.addEventListener("pointerleave", () => { glisse = false; });
+  canvas.addEventListener("pointermove", e => {
+    souris.x = (e.clientX / innerWidth) * 2 - 1;
+    souris.y = -(e.clientY / innerHeight) * 2 + 1;
+    tip.style.left = (e.clientX + 16) + "px";
+    tip.style.top = (e.clientY + 14) + "px";
+    if (!glisse) return;
+    cam.azim -= (e.clientX - lx) * 0.0055;
+    cam.polar = clamp(cam.polar - (e.clientY - ly) * 0.0055, 0.22, Math.PI - 0.22);
+    lx = e.clientX; ly = e.clientY;
+  });
+  canvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    cam.cibleDist = clamp(cam.cibleDist * (1 + Math.sign(e.deltaY) * 0.09), 1.35, 7);
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", e => {
+    if (e.touches.length === 2) {
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      if (pincement) cam.cibleDist = clamp(cam.cibleDist * (pincement / d), 1.35, 7);
+      pincement = d;
+    }
+  }, { passive: true });
+  canvas.addEventListener("touchend", () => { pincement = null; });
+}
+
+/* ---------- Boucle ---------- */
+let dernier = performance.now(), images = 0;
+function animer() {
+  requestAnimationFrame(animer);
+  const now = performance.now(), dt = Math.min((now - dernier) / 1000, 0.1);
+  dernier = now; images++;
+
+  if (S.autoRotation && !S.lecture) cam.azim += dt * 0.045;
+  cam.dist += (cam.cibleDist - cam.dist) * Math.min(dt * 5, 1);
+
+  camera.position.set(
+    cam.dist * Math.sin(cam.polar) * Math.cos(cam.azim),
+    cam.dist * Math.cos(cam.polar),
+    cam.dist * Math.sin(cam.polar) * Math.sin(cam.azim)
+  );
+  camera.lookAt(0, 0, 0);
+  etoiles.rotation.y += dt * 0.004;
+
+  // lecture automatique
+  if (S.lecture) {
+    S.p += dt / 105;
+    if (S.p >= 1) { S.p = 1; basculerLecture(false); }
+    allerA(S.p);
+  }
+
+  // survol des marqueurs
+  if (groupeMarqueurs.children.length) {
+    raycaster.setFromCamera(souris, camera);
+    const hits = raycaster.intersectObjects(groupeMarqueurs.children, false);
+    if (hits.length) {
+      const m = hits[0].object.userData;
+      tip.innerHTML = `<b>${m.nom}</b><br><span style="color:#91a3bd">${m.note}</span>`;
+      tip.style.display = "block";
+    } else tip.style.display = "none";
+  }
+
+  renderer.render(scene, camera);
+}
+
+// point d'inspection pour le débogage (console du navigateur)
+window.__CLIMAT = { S, cam, get images() { return images; },
+  get geo() { return { charge: geoOK, anneaux: ANNEAUX.length }; },
+  texture: texCanvas, scene: () => scene,
+  main: (lm, prec) => analyserMain(lm, prec), zoom: e => niveauZoom(e), narration: () => N };
+
+/* =====================================================================
+   5. NAVIGATION TEMPORELLE
+   ===================================================================== */
+function chapitrePour(annee) {
+  let best = CHAPITRES[0], d = Infinity;
+  for (const c of CHAPITRES) {
+    if (annee >= c.plage[0] && annee <= c.plage[1]) return c;
+    const dd = Math.min(Math.abs(annee - c.plage[0]), Math.abs(annee - c.plage[1]));
+    if (dd < d) { d = dd; best = c; }
+  }
+  return best;
+}
+
+let dernierAnom = null, dernierAge = undefined, tRedessin = 0;
+
+/** Le badge sous le globe dit toujours ce qu'on regarde et ce qu'on ignore. */
+function majBadgeGlobe(ageGeo, ageMa) {
+  const el = $("#globeBadge");
+  if (!el) return;
+  const modele = PALEO_SOURCE ? PALEO_SOURCE.modele : "—";
+  if (ageGeo === null) {
+    const horsModele = PALEO_AGES.length && ageMa > PALEO_AGES[PALEO_AGES.length - 1];
+    el.innerHTML = horsModele
+      ? `<b>Géographie actuelle affichée par défaut</b> — aucune reconstruction publiée ne remonte au-delà de ` +
+        `${PALEO_AGES[PALEO_AGES.length - 1]} millions d'années. ${META.avertissementChamp}`
+      : `Géographie actuelle. ${META.avertissementChamp}`;
+  } else {
+    const longitudeIncertaine = ageGeo > 200;
+    el.innerHTML =
+      `<b>Continents reconstitués à ${ageGeo} millions d'années</b> — modèle ${modele} ` +
+      `(Merdith et al. 2021, via GPlates). ` +
+      (longitudeIncertaine
+        ? `<span class="badge-alerte">La longitude n'est pas contrainte par les données à cet âge : latitude et forme fiables, position est-ouest dépendante du modèle.</span> `
+        : "") +
+      `Les repères posés sur le globe utilisent les coordonnées actuelles des sites. ${META.avertissementChamp}`;
+  }
+}
+function allerA(p, force = false) {
+  S.p = clamp(p, 0, 1);
+  const annee = pVersAnnee(S.p);
+  const ch = chapitrePour(annee);
+  const change = ch !== S.chapitre;
+  S.chapitre = ch;
+
+  // frise
+  $("#friseCurseur").style.left = (S.p * 100) + "%";
+  $("#friseFill").style.width = (S.p * 100) + "%";
+  $("#fiEpoque").textContent = ch.ere;
+  $("#fiDate").textContent = formatAnnee(annee);
+  $("#fiCo2").textContent = ch.co2 >= 10000
+    ? "≈ " + Math.round(ch.co2 / 1000) + " 000 ppm"
+    : "≈ " + Math.round(ch.co2) + " ppm";
+  $("#fiTemp").textContent = (ch.tAnom > 0 ? "+" : "") + fr(ch.tAnom, 1) + " °C";
+  $("#fiMer").textContent = ch.mer === null ? "—" : (ch.mer > 0 ? "+" : "") + Math.round(ch.mer) + " m";
+  const st = $("#fiStatut");
+  st.innerHTML = `<span class="badge ${ch.statut}">${libelleStatut(ch.statut)}</span>`;
+
+  // globe : on ne redessine que si la température OU la géographie ont changé
+  const ageMa = (2025 - annee) / 1e6;
+  const ageGeo = ageReconstruction(ageMa);
+  if (force || dernierAnom === null || ageGeo !== dernierAge || Math.abs(ch.tAnom - dernierAnom) > 0.01) {
+    const maintenant = performance.now();
+    if (force || ageGeo !== dernierAge || maintenant - tRedessin > 90) {
+      tRedessin = maintenant; dernierAnom = ch.tAnom; dernierAge = ageGeo;
+      dessinerTexture(ch.tAnom, ageGeo);
+      atmos.material.uniforms.teinte.value.setHex(
+        ch.tAnom > 3 ? 0xff8a5c : ch.tAnom < -3 ? 0x9fd8ff : 0x4fa8ff);
+      majBadgeGlobe(ageGeo, ageMa);
+    }
+  }
+
+  if (change || force) {
+    poserMarqueurs(ch.marqueurs || []);
+    $$(".chap").forEach(el => el.classList.toggle("actif", el.dataset.id === ch.id));
+    const actif = $(".chap.actif");
+    if (actif) actif.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (S.mode === "histoire") rendreContenu();
+    if (change) narrationSuitChapitre(ch);
+  }
+}
+
+function libelleStatut(s) {
+  return { mesure: "Mesure directe", carotte: "Carotte de glace", proxy: "Proxy · reconstruction",
+    modele: "Projection de modèle", schema: "Schéma simplifié" }[s] || s;
+}
+
+function allerChapitre(ch) {
+  S.lecture && basculerLecture(false);
+  allerA(anneeVersP(ch.annee), true);
+  if (S.mode !== "histoire") { S.mode = "histoire"; majModes(); }
+  rendreContenu();
+}
+
+/* =====================================================================
+   6. INTERFACE
+   ===================================================================== */
+function initUI() {
+  // liste des chapitres
+  $("#chapList").innerHTML = CHAPITRES.map(c => `
+    <div class="chap" data-id="${c.id}">
+      <div class="chap-puce" style="background:${c.couleur};color:${c.couleur}"></div>
+      <div class="chap-txt">
+        <div class="chap-ere">${c.ere}</div>
+        <div class="chap-titre">${c.titre}</div>
+      </div>
+    </div>`).join("");
+  $$(".chap").forEach(el => el.onclick = () => allerChapitre(CHAPITRES.find(c => c.id === el.dataset.id)));
+
+  construireFrise();
+
+  // modes
+  $$(".mode-btn").forEach(b => b.onclick = () => { S.mode = b.dataset.mode; majModes(); rendreContenu(); });
+
+  // frise interactive
+  const piste = $("#frisePiste");
+  let glisse = false;
+  const set = e => {
+    const r = piste.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    S.lecture && basculerLecture(false);
+    allerA(clamp(x / r.width, 0, 1));
+  };
+  piste.addEventListener("pointerdown", e => { glisse = true; piste.setPointerCapture(e.pointerId); set(e); });
+  piste.addEventListener("pointermove", e => { if (glisse) set(e); });
+  piste.addEventListener("pointerup", () => { glisse = false; });
+
+  $("#btnPlay").onclick = () => basculerLecture(!S.lecture);
+  $("#btnGestes").onclick = () => basculerGestes(!S.gestes);
+  initNarration();
+  $("#btnAide").onclick = ouvrirAide;
+  $("#camClose").onclick = () => basculerGestes(false);
+  $("#modaleClose").onclick = () => $("#modale").classList.add("hidden");
+  $("#modale").onclick = e => { if (e.target.id === "modale") $("#modale").classList.add("hidden"); };
+
+  addEventListener("keydown", e => {
+    if (e.key === "Escape") $("#modale").classList.add("hidden");
+    // en parcours, les flèches enchaînent les étapes ; ailleurs, les chapitres
+    if (e.key === "ArrowRight") {
+      if (S.mode === "parcours") allerStation(S.station + 1);
+      else { const i = CHAPITRES.indexOf(S.chapitre); allerChapitre(CHAPITRES[Math.min(i + 1, CHAPITRES.length - 1)]); }
+    }
+    if (e.key === "ArrowLeft") {
+      if (S.mode === "parcours") allerStation(S.station - 1);
+      else { const i = CHAPITRES.indexOf(S.chapitre); allerChapitre(CHAPITRES[Math.max(i - 1, 0)]); }
+    }
+    if (e.code === "Space") { e.preventDefault(); basculerLecture(!S.lecture); }
+    if (e.key.toLowerCase() === "g") basculerGestes(!S.gestes);
+    if (e.key.toLowerCase() === "n") basculerNarration(!N.actif);
+    if (e.key === "+" || e.key === "=") cam.cibleDist = clamp(cam.cibleDist * 0.88, 1.35, 7);
+    if (e.key === "-") cam.cibleDist = clamp(cam.cibleDist * 1.14, 1.35, 7);
+    if (e.key === "?" || e.key === "h") ouvrirAide();
+    const n = parseInt(e.key);
+    if (n >= 1 && n <= 6) {
+      S.mode = ["parcours", "histoire", "consequences", "solutions", "idees", "methode"][n - 1];
+      majModes(); rendreContenu();
+    }
+  });
+
+  majModes();
+  rendreContenu();
+}
+
+function majModes() { $$(".mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === S.mode)); }
+
+function basculerLecture(v) {
+  S.lecture = v;
+  const b = $("#btnPlay");
+  b.textContent = v ? "❚❚" : "▶";
+  b.classList.toggle("actif", v);
+  if (v && S.p >= 0.999) S.p = 0;
+}
+
+function construireFrise() {
+  // bandes d'ères
+  const eres = $("#friseEres");
+  eres.innerHTML = CHAPITRES.map(c => {
+    const a = anneeVersP(c.plage[0]), b = anneeVersP(c.plage[1]);
+    const w = Math.max(b - a, 0.004) * 100;
+    const court = c.ere.length > 13 && w < 8 ? "" : c.ere;
+    return `<div class="ere-seg" data-id="${c.id}" style="flex:0 0 ${w}%;background:${c.couleur}" title="${c.ere} — ${c.titre}">${court}</div>`;
+  }).join("");
+  $$(".ere-seg").forEach(el => el.onclick = () => allerChapitre(CHAPITRES.find(c => c.id === el.dataset.id)));
+
+  // graduations
+  const reperes = [
+    { a: 2025 - 4.0e9, l: "4 Ga" }, { a: 2025 - 1e9, l: "1 Ga" },
+    { a: 2025 - 5.41e8, l: "541 Ma" }, { a: 2025 - 2.52e8, l: "252 Ma" },
+    { a: 2025 - 6.6e7, l: "66 Ma" }, { a: 2025 - 2.58e6, l: "2,6 Ma" },
+    { a: 2025 - 11700, l: "11 700 ans" }, { a: 1750, l: "1750" },
+    { a: 1950, l: "1950" }, { a: 2025, l: "2025" },
+  ];
+  $("#friseTicks").innerHTML = reperes.map(r =>
+    `<div class="tick" style="left:${anneeVersP(r.a) * 100}%"><span>${r.l}</span></div>`).join("");
+
+  // marqueurs d'événements
+  const evts = [
+    { a: 2025 - 2.4e9, l: "Grande Oxydation", c: "#5fbf9b" },
+    { a: 2025 - 7.0e8, l: "Boule de neige", c: "#8fd3f4" },
+    { a: 2025 - 2.52e8, l: "Permien-Trias", c: "#c0392b" },
+    { a: 2025 - 6.6e7, l: "K-Pg", c: "#9b59b6" },
+    { a: 2025 - 5.6e7, l: "PETM", c: "#e74c3c" },
+    { a: 2025 - 21000, l: "Dernier max. glaciaire", c: "#85c1e9" },
+    { a: 1850, l: "Ère industrielle", c: "#d68910" },
+    { a: 2024, l: "+1,55 °C", c: "#e74c3c" },
+  ];
+  $("#friseMarqueurs").innerHTML = evts.map(e => {
+    const p = anneeVersP(e.a) * 100;
+    return `<div class="fm" style="left:${p}%;background:${e.c};box-shadow:0 0 8px ${e.c}"></div>
+            <div class="fm-lab" style="left:${p}%">${e.l}</div>`;
+  }).join("");
+}
+
+/* =====================================================================
+   7. CONTENU DU PANNEAU DROIT
+   ===================================================================== */
+function rendreContenu(garderScroll = false) {
+  const el = $("#contenuInner");
+  const sc = el.scrollTop;
+  if (S.mode === "parcours") el.innerHTML = vueParcours();
+  else if (S.mode === "histoire") el.innerHTML = vueHistoire();
+  else if (S.mode === "consequences") el.innerHTML = vueConsequences();
+  else if (S.mode === "solutions") el.innerHTML = vueSolutions();
+  else if (S.mode === "idees") el.innerHTML = vueIdees();
+  else el.innerHTML = vueMethode();
+  el.scrollTop = garderScroll ? sc : 0;
+  brancherContenu();
+}
+
+/* ---------- Parcours guidé ---------- */
+function vueParcours() {
+  const st = PARCOURS[S.station];
+  const n = PARCOURS.length;
+  const points = st.points.map(p =>
+    `<div class="fait"><div class="fait-t">${p.t}</div><div class="fait-s">${p.s}</div></div>`).join("");
+
+  const finale = !st.final ? "" : `
+    <div class="conclusion">
+      ${st.conclusion.split("\n\n").map(p => `<p>${p}</p>`).join("")}
+    </div>
+
+    <div class="c-h">${AGIR.intro}</div>
+
+    <div class="c-h" style="color:var(--vert);border-color:rgba(69,214,154,.25)">Ce qui pèse dans vos choix personnels</div>
+    ${AGIR.personnels.map(a => `
+      <div class="agir"><div class="agir-t">${a.t}</div>
+        <div class="agir-d">${a.d}</div><div class="pt-s">${a.s}</div></div>`).join("")}
+
+    <div class="c-h" style="color:var(--accent-2);border-color:rgba(255,180,84,.25)">Ce qui pèse davantage, et dont on parle peu</div>
+    ${AGIR.leviers.map(a => `
+      <div class="agir fort"><div class="agir-t">${a.t}</div>
+        <div class="agir-d">${a.d}</div><div class="pt-s">${a.s}</div></div>`).join("")}
+
+    <div class="c-geo" style="background:rgba(231,76,60,.07);border-color:rgba(231,76,60,.2)">
+      ${AGIR.avertissement}<div class="pt-s" style="margin-top:6px">${AGIR.avertissementSource}</div>
+    </div>
+
+    <div class="parcours-sorties">
+      <button class="btn-ecouter" data-va="solutions">Chiffrer les leviers dans le simulateur →</button>
+      <button class="btn-ecouter" data-va="histoire">Reprendre l'histoire complète, 17 chapitres →</button>
+      <button class="btn-ecouter" data-va="idees">Répondre aux objections fréquentes →</button>
+    </div>`;
+
+  return `
+    <div class="parcours-fil">
+      ${PARCOURS.map((s, i) =>
+        `<span class="pf-point ${i === S.station ? "actif" : ""} ${i < S.station ? "vu" : ""}"
+               data-station="${i}" title="${s.numero}"></span>`).join("")}
+    </div>
+    <div class="c-ere">Étape ${S.station + 1} sur ${n} · ${st.numero}</div>
+    <div class="c-titre">${st.titre}</div>
+    <div class="c-accroche">${st.phrase}</div>
+    ${points}
+    ${finale}
+    <div class="parcours-nav">
+      <button class="pn-btn" id="pnPrec" ${S.station === 0 ? "disabled" : ""}>← Précédent</button>
+      <button class="pn-btn primaire" id="pnSuiv" ${S.station === n - 1 ? "disabled" : ""}>
+        ${S.station === n - 2 ? "Et maintenant ?" : "Suivant →"}
+      </button>
+    </div>`;
+}
+
+function allerStation(i) {
+  S.station = clamp(i, 0, PARCOURS.length - 1);
+  const st = PARCOURS[S.station];
+  const ch = CHAPITRES.find(c => c.id === st.chapitre);
+  if (ch) allerA(anneeVersP(ch.annee), true);
+  rendreContenu();
+}
+
+/* ---------- Histoire ---------- */
+function vueHistoire() {
+  const c = S.chapitre;
+  const plage = (v, p, u, d = 0) => p ? `<div class="mesure-plage">${fr(p[0], d)} – ${fr(p[1], d)}</div>` : "";
+  return `
+    <div class="c-ere">${c.ere} · ${formatAnnee(c.annee)}</div>
+    <div class="c-titre">${c.titre}</div>
+    <div class="c-accroche">${c.accroche}</div>
+
+    <div class="c-mesures">
+      <div class="mesure"><div class="mesure-lab">CO₂</div>
+        <div class="mesure-val">${c.co2 >= 10000 ? Math.round(c.co2 / 1000) + "k" : Math.round(c.co2)}</div>
+        <div class="mesure-plage">ppm${c.co2Plage ? "<br>" + (c.co2Plage[0] >= 1000 ? Math.round(c.co2Plage[0] / 1000) + "k" : c.co2Plage[0]) + "–" + (c.co2Plage[1] >= 1000 ? Math.round(c.co2Plage[1] / 1000) + "k" : c.co2Plage[1]) : ""}</div></div>
+      <div class="mesure"><div class="mesure-lab">Température</div>
+        <div class="mesure-val" style="color:${c.tAnom > 1 ? "#ff8a6b" : c.tAnom < -1 ? "#8fd3f4" : "#dfe8f5"}">${c.tAnom > 0 ? "+" : ""}${fr(c.tAnom, 1)}</div>
+        ${plage(c.tAnom, c.tAnomPlage, "°C", 1)}</div>
+      <div class="mesure"><div class="mesure-lab">Niveau marin</div>
+        <div class="mesure-val">${c.mer === null ? "—" : (c.mer > 0 ? "+" : "") + Math.round(c.mer)}</div>
+        <div class="mesure-plage">${c.mer === null ? "inconnu" : "m vs actuel"}</div></div>
+    </div>
+    <div style="text-align:center;margin-bottom:14px">
+      <span class="badge ${c.statut}">${libelleStatut(c.statut)}</span>
+      <span style="font-size:10px;color:var(--texte-faible);margin-left:6px">écarts vs 1850-1900</span>
+    </div>
+
+    <div class="c-recit">${c.recit.map(p => `<p>${p}</p>`).join("")}</div>
+
+    <div class="c-h">Le récit, à voix haute</div>
+    <div class="narration-bloc">
+      <button class="btn-ecouter" id="btnEcouter">🎙 Écouter ce chapitre</button>
+      <div class="narration-texte">${narrationDuChapitre(c).map(p => `<p>${p}</p>`).join("")}</div>
+    </div>
+
+    ${grapheDuChapitre(c)}
+
+    <div class="c-h">Ce qu'on sait, et d'où ça vient</div>
+    ${c.faits.map(f => `<div class="fait"><div class="fait-t">${f.t}</div><div class="fait-s">${f.s}</div></div>`).join("")}
+
+    <div class="c-h">Géographie de l'époque</div>
+    <div class="c-geo">${c.geo}</div>
+
+    ${c.marqueurs && c.marqueurs.length ? `
+      <div class="c-h">Sur le globe</div>
+      ${c.marqueurs.map(m => `<div class="region" data-lat="${m.lat}" data-lon="${m.lon}">
+          <div class="region-head"><div class="region-nom">${m.nom}</div>
+          <div class="region-delta">${m.lat.toFixed(1)}°, ${m.lon.toFixed(1)}°</div></div>
+          <div style="font-size:11.4px;color:var(--texte-faible);margin-top:3px">${m.note}</div>
+        </div>`).join("")}` : ""}
+  `;
+}
+
+function grapheDuChapitre(c) {
+  const g = (id, titre, statut, note, src) => `
+    <div class="graph">
+      <div class="graph-titre"><span>${titre}</span><span class="badge ${statut}">${libelleStatut(statut)}</span></div>
+      <canvas id="${id}" height="150"></canvas>
+      <div class="graph-note">${note}</div>
+      <div class="graph-src">Source : ${src}</div>
+    </div>`;
+  const deepTime = ["paleozoique", "carbonifere", "permien", "cretace", "kpg", "petm", "cenozoique"];
+  if (deepTime.includes(c.id))
+    return g("gPhan", CO2_PHANEROZOIQUE.titre, CO2_PHANEROZOIQUE.statut, CO2_PHANEROZOIQUE.note, CO2_PHANEROZOIQUE.source);
+  if (c.id === "quaternaire" || c.id === "holocene")
+    return g("gCycles", CYCLES_GLACIAIRES.titre, CYCLES_GLACIAIRES.statut, CYCLES_GLACIAIRES.note, CYCLES_GLACIAIRES.source);
+  if (["industrie", "acceleration", "moderne", "futur"].includes(c.id))
+    return g("gKeeling", KEELING.titre, KEELING.statut, KEELING.note, KEELING.source);
+  return "";
+}
+
+/* ---------- Conséquences ---------- */
+function vueConsequences() {
+  return `
+    <div class="c-ere">Où cela nous mène</div>
+    <div class="c-titre">Conséquences observées et projetées</div>
+    <div class="c-accroche">Ce qui suit est déjà mesuré, sauf mention explicite de projection.</div>
+
+    <div class="graph">
+      <div class="graph-titre"><span>${TEMPERATURE_MODERNE.titre}</span><span class="badge mesure">Mesure directe</span></div>
+      <canvas id="gTemp" height="165"></canvas>
+      <div class="graph-note">${TEMPERATURE_MODERNE.note}</div>
+      <div class="graph-src">Source : ${TEMPERATURE_MODERNE.source}</div>
+    </div>
+
+    ${CONSEQUENCES.map(c => `
+      <div class="carte">
+        <div class="carte-head">
+          <span class="carte-icone">${c.icone}</span>
+          <span class="carte-titre">${c.titre}</span>
+          <span><div class="carte-chiffre">${c.chiffre}</div><div class="carte-chiffre-lab">${c.chiffreLabel}</div></span>
+        </div>
+        ${c.points.map(p => `<div class="pt"><div class="pt-t">${p.t}</div><div class="pt-s">${p.s}</div></div>`).join("")}
+      </div>`).join("")}
+
+    <div class="c-h">Impacts par région — cliquez pour y aller sur le globe</div>
+    ${REGIONS.map(r => `
+      <div class="region" data-lat="${r.lat}" data-lon="${r.lon}">
+        <div class="region-head"><div class="region-nom">${r.nom}</div><div class="region-delta">${r.delta}</div></div>
+        <ul>${r.points.map(p => `<li>${p}</li>`).join("")}</ul>
+      </div>`).join("")}
+
+    <div class="c-h">Émissions mondiales — la cause</div>
+    <div class="graph">
+      <div class="graph-titre"><span>${EMISSIONS.titre}</span><span class="badge mesure">Mesure directe</span></div>
+      <canvas id="gEmis" height="140"></canvas>
+      <div class="graph-note">${EMISSIONS.note}</div>
+      <div class="graph-src">Source : ${EMISSIONS.source}</div>
+    </div>
+  `;
+}
+
+/* ---------- Solutions ---------- */
+function vueSolutions() {
+  const C = CADRE_PHYSIQUE;
+  return `
+    <div class="c-ere">Ce qui dépend encore de nous</div>
+    <div class="c-titre">Solutions : le cadre physique, puis les leviers</div>
+    <div class="c-accroche">Une seule règle gouverne tout le reste : le réchauffement est proportionnel au CO₂ cumulé.</div>
+
+    <div class="carte">
+      <div class="carte-head"><span class="carte-icone">📐</span><span class="carte-titre">La relation qui commande tout</span></div>
+      <div class="pt"><div class="pt-t">Le réchauffement est approximativement proportionnel au CO₂ <b>cumulé</b> émis depuis l'ère préindustrielle : environ <b>${fr(C.tcre, 2)} °C par 1000 milliards de tonnes de CO₂</b> (fourchette ${fr(C.tcrePlage[0], 2)}–${fr(C.tcrePlage[1], 2)}).</div>
+        <div class="pt-s">${C.tcreSource}</div></div>
+      <div class="pt"><div class="pt-t">Trois conséquences directes. <b>1)</b> Stabiliser la température exige d'atteindre le net zéro CO₂ — réduire les émissions ne suffit pas, il faut les annuler. <b>2)</b> Chaque tonne compte, indépendamment de la date à laquelle elle est émise. <b>3)</b> Il existe un budget carbone fini.</div>
+        <div class="pt-s">GIEC AR6 WG1, SPM D.1</div></div>
+    </div>
+
+    <div class="c-h">Budget carbone restant au 1ᵉʳ janvier 2025</div>
+    ${C.budgets.map(b => `
+      <div class="scen">
+        <div class="scen-pastille" style="background:${b.cible === "1,5 °C" ? "#2ecc71" : b.cible === "2 °C" ? "#e67e22" : "#f1c40f"};color:${b.cible === "1,5 °C" ? "#2ecc71" : "#e67e22"}"></div>
+        <div class="scen-nom">${b.cible}</div>
+        <div class="scen-t">${b.gt} Gt</div>
+        <div class="scen-desc">${b.annees} · probabilité ${b.proba}</div>
+      </div>`).join("")}
+    <div class="graph-src" style="margin-bottom:16px">Source : ${C.budgetsSource}. Émissions 2024 de référence : ${fr(C.emissions2024, 1)} GtCO₂ (${C.emissionsSource}).</div>
+
+    <div class="c-h">Simulateur — que produisent les leviers ?</div>
+    <div class="resultat">
+      <div class="res-lab">Réchauffement estimé en 2100</div>
+      <div class="res-grande" id="simT">—</div>
+      <div class="res-barre"><div class="res-curseur" id="simCurseur" style="left:50%"></div></div>
+      <div class="res-echelle"><span>1 °C</span><span>2 °C</span><span>3 °C</span><span>4 °C</span><span>5 °C</span></div>
+      <div class="res-detail" id="simDetail"></div>
+    </div>
+
+    <div class="graph">
+      <div class="graph-titre"><span>Trajectoire d'émissions résultante</span><span class="badge modele">Projection de modèle</span></div>
+      <canvas id="gSim" height="150"></canvas>
+      <div class="graph-note" id="simNote"></div>
+    </div>
+
+    ${LEVIERS.map(l => `
+      <div class="levier">
+        <div class="levier-head">
+          <span class="levier-nom">${l.nom}</span>
+          <span class="levier-cat">${l.cat}</span>
+          <span class="levier-val" id="v-${l.id}">—</span>
+        </div>
+        <input type="range" min="0" max="100" step="5" value="${S.leviers[l.id]}" data-levier="${l.id}">
+        <div class="levier-note">Potentiel maximal 2030 : <b>${fr(l.potentiel, 1)} GtCO₂-eq/an</b> · ${l.cout}<br>${l.note}</div>
+      </div>`).join("")}
+
+    <div class="graph-src" style="margin-bottom:16px">${LEVIERS_SOURCE}</div>
+
+    <div class="c-h">Méthode du simulateur</div>
+    <div class="c-geo" style="background:rgba(79,195,247,.07);border-color:rgba(79,195,247,.2)">
+      <b>Ce que fait le calcul, exactement.</b><br>
+      1. Trajectoire de référence sans effort supplémentaire, en GtCO₂/an : ${fr(C.emissions2024, 1)} en 2025, 43 en 2030, 48 en 2050, 52 en 2100. Curseurs à zéro, c'est cette trajectoire qui s'applique.<br>
+      2. Réduction obtenue en 2030 = somme des (potentiel du levier × curseur), multipliée par 0,85 pour tenir compte des recouvrements entre leviers.<br>
+      3. L'effort se poursuit et s'amplifie : la réduction vaut 1,8 fois sa valeur de 2030 en 2050, et 2,2 fois en 2100. Les émissions nettes sont bornées à −8 Gt en 2050 et −12 Gt en 2100.<br>
+      4. Les émissions sont cumulées sur 2025-2100 (méthode des trapèzes), puis converties en réchauffement via le TCRE : ΔT = 1,3 °C + cumul × ${fr(C.tcre, 2)} / 1000.<br><br>
+      <b>Les limites, honnêtement.</b> Les points 1, 2 et 3 sont des hypothèses de cette application, pas des résultats du GIEC — seuls les potentiels des leviers et le TCRE en proviennent. Le TCRE vaut pour des émissions positives ; en émissions nettes négatives, la réponse réelle est asymétrique et le refroidissement serait plus lent qu'affiché. Les gaz autres que le CO₂ ne sont pas traités séparément.<br><br>
+      <b>Point de calibration.</b> Les positions par défaut des curseurs donnent environ +2,5 °C, ce qui correspond à l'ordre de grandeur des estimations « politiques actuellement mises en œuvre » (+2,6 à +3,1 °C, PNUE 2024). Curseurs à zéro : environ +2,9 °C. Ce simulateur donne une hiérarchie des leviers et un ordre de grandeur, pas une projection.
+    </div>
+
+    <div class="c-h">Trajectoires de référence du GIEC</div>
+    ${SCENARIOS.map(s => `
+      <div class="scen ${S.scenario === s.id ? "actif" : ""}" data-scen="${s.id}">
+        <div class="scen-pastille" style="background:${s.couleur};color:${s.couleur}"></div>
+        <div class="scen-nom">${s.nom}</div>
+        <div class="scen-t" style="color:${s.couleur}">+${fr(s.t2100, 1)}</div>
+        <div class="scen-desc">${s.desc}<br><span style="opacity:.7">Fourchette ${fr(s.plage[0], 1)}–${fr(s.plage[1], 1)} °C · mer +${fr(s.mer[0], 2)} à +${fr(s.mer[1], 2)} m</span></div>
+      </div>`).join("")}
+    <div class="graph-src" style="margin-bottom:16px">Source : ${SCENARIO_SOURCE}</div>
+
+    <div class="c-h">${FOCUS_CIMENT.titre}</div>
+    <div class="carte">
+      <div class="pt"><div class="pt-t"><i>${FOCUS_CIMENT.intro}</i></div></div>
+      ${FOCUS_CIMENT.points.map(p => `<div class="pt"><div class="pt-t">${p.t}</div><div class="pt-s">${p.s}</div></div>`).join("")}
+    </div>
+  `;
+}
+
+/* ---------- Idées reçues ---------- */
+function vueIdees() {
+  return `
+    <div class="c-ere">Objections fréquentes</div>
+    <div class="c-titre">Idées reçues, traitées sérieusement</div>
+    <div class="c-accroche">Chacune de ces objections contient une part de vrai. C'est ce qui les rend efficaces — et ce qui rend la réponse intéressante.</div>
+    ${IDEES_RECUES.map((i, n) => `
+      <div class="idee" data-idee="${n}">
+        <div class="idee-q"><span class="idee-fleche">▶</span><b>${i.q}</b></div>
+        <div class="idee-r">${i.r}<div class="idee-s">Source : ${i.s}</div></div>
+      </div>`).join("")}
+  `;
+}
+
+/* ---------- Méthode ---------- */
+function vueMethode() {
+  return `
+    <div class="c-ere">Transparence</div>
+    <div class="c-titre">Méthode &amp; sources</div>
+    <div class="c-accroche">Une application sur le climat qui ne dit pas d'où viennent ses chiffres ne vaut rien. Voici les règles.</div>
+
+    <div class="c-h">Principes</div>
+    ${METHODE.principes.map(p => `<div class="principe"><span>◆</span><div>${p}</div></div>`).join("")}
+
+    <div class="c-h">Le modèle de couleur du globe</div>
+    <div class="c-geo">${METHODE.modeleZonal}</div>
+
+    <div class="c-h">Ouvrages de référence</div>
+    ${METHODE.ouvrages.map(o => `
+      <div class="ouvrage">
+        <div class="ouvrage-t">${o.u ? `<a href="${o.u}" target="_blank" rel="noopener">${o.t}</a>` : o.t}</div>
+        <div class="ouvrage-n">${o.n}</div>
+      </div>`).join("")}
+
+    <div class="c-h">Jeux de données publics</div>
+    <ul class="liste-simple">
+      ${METHODE.jeuxDonnees.map(d => `<li><a href="${d.u}" target="_blank" rel="noopener">${d.t}</a></li>`).join("")}
+    </ul>
+
+    <div class="c-h">Articles clés cités</div>
+    <ul class="liste-simple">${METHODE.articlesCles.map(a => `<li>${a}</li>`).join("")}</ul>
+
+    <div class="c-h">Ce que cette application ne fait pas</div>
+    <div class="c-geo" style="background:rgba(231,76,60,.07);border-color:rgba(231,76,60,.2)">
+      Elle ne reconstitue pas les continents au-delà de 900 millions d'années : aucun modèle publié ne remonte plus loin. Les trois premiers chapitres sont donc affichés en géographie actuelle, et le globe le dit.<br><br>
+      Elle ne garantit pas la longitude des continents avant 200 millions d'années — voir l'avertissement ci-dessus. C'est une limite des données, pas de l'application.<br><br>
+      Elle n'affiche aucune carte régionale de température issue d'un modèle climatique : le champ coloré est une aide à la lecture, décrite ci-dessus.<br><br>
+      Elle ne prédit pas l'avenir. Les scénarios sont des explorations conditionnelles, et le simulateur repose sur des hypothèses explicitement listées dans l'onglet Solutions.<br><br>
+      ${META.majDonnees}.
+    </div>
+  `;
+}
+
+/* ---------- Branchements après rendu ---------- */
+function brancherContenu() {
+  // graphiques
+  if ($("#gPhan")) grapheCO2Phanerozoique($("#gPhan"));
+  if ($("#gCycles")) grapheCycles($("#gCycles"));
+  if ($("#gKeeling")) grapheKeeling($("#gKeeling"));
+  if ($("#gTemp")) grapheTemperature($("#gTemp"));
+  if ($("#gEmis")) grapheEmissions($("#gEmis"));
+
+  // aller à une région sur le globe
+  $$(".region[data-lat]").forEach(el => el.onclick = () => {
+    const lat = parseFloat(el.dataset.lat), lon = parseFloat(el.dataset.lon);
+    S.autoRotation = false;
+    cam.azim = -(lon + 180) * Math.PI / 180 - Math.PI / 2;
+    cam.polar = clamp((90 - lat) * Math.PI / 180, 0.22, Math.PI - 0.22);
+    cam.cibleDist = 2.35;
+  });
+
+  // parcours guidé
+  if ($("#pnSuiv")) {
+    $("#pnSuiv").onclick = () => allerStation(S.station + 1);
+    $("#pnPrec").onclick = () => allerStation(S.station - 1);
+    $$(".pf-point").forEach(el => el.onclick = () => allerStation(+el.dataset.station));
+    $$("[data-va]").forEach(el => el.onclick = () => {
+      S.mode = el.dataset.va; majModes(); rendreContenu();
+    });
+  }
+
+  // écouter le chapitre courant
+  const ecouter = $("#btnEcouter");
+  if (ecouter) ecouter.onclick = () => {
+    if (!N.actif) basculerNarration(true);
+    else demarrerNarration(S.chapitre);
+  };
+
+  // idées reçues
+  $$(".idee").forEach(el => el.querySelector(".idee-q").onclick = () => el.classList.toggle("ouvert"));
+
+  // scénarios
+  $$(".scen[data-scen]").forEach(el => el.onclick = () => {
+    S.scenario = el.dataset.scen;
+    $$(".scen[data-scen]").forEach(x => x.classList.toggle("actif", x.dataset.scen === S.scenario));
+  });
+
+  // simulateur
+  const sliders = $$("input[data-levier]");
+  if (sliders.length) {
+    sliders.forEach(s => {
+      s.oninput = () => { S.leviers[s.dataset.levier] = +s.value; majSimulateur(); };
+    });
+    majSimulateur();
+  }
+}
+
+/* =====================================================================
+   8. SIMULATEUR
+   ===================================================================== */
+/* Référence « aucun effort supplémentaire » : hypothèse de l'application.
+   Ordre de grandeur cohérent avec les scénarios sans politiques additionnelles. */
+const REFERENCE = { 2030: 43, 2050: 48, 2100: 52 };
+
+function calculerSimulation() {
+  const C = CADRE_PHYSIQUE;
+  let reduction2030 = 0;
+  for (const l of LEVIERS) reduction2030 += l.potentiel * (S.leviers[l.id] / 100);
+  reduction2030 *= 0.85;                                  // recouvrement (hypothèse de l'app)
+
+  const E2025 = C.emissions2024;
+  const E2030 = REFERENCE[2030] - reduction2030;
+  // l'effort se poursuit et s'amplifie : ×1,8 en 2050, ×2,2 en 2100
+  const E2050 = Math.max(REFERENCE[2050] - reduction2030 * 1.8, -8);
+  const E2100 = Math.max(REFERENCE[2100] - reduction2030 * 2.2, -12);
+
+  const pts = [[2025, E2025], [2030, E2030], [2050, E2050], [2100, E2100]];
+  let cumul = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [a1, e1] = pts[i], [a2, e2] = pts[i + 1];
+    cumul += (e1 + e2) / 2 * (a2 - a1);
+  }
+
+  // année de franchissement du net zéro
+  let netZero = null;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [a1, e1] = pts[i], [a2, e2] = pts[i + 1];
+    if (e1 > 0 && e2 <= 0) { netZero = Math.round(a1 + (a2 - a1) * (e1 / (e1 - e2))); break; }
+  }
+
+  const dT = C.rechauffementActuel + cumul * C.tcre / 1000;
+  const dTmin = C.rechauffementActuel + cumul * C.tcrePlage[0] / 1000;
+  const dTmax = C.rechauffementActuel + cumul * C.tcrePlage[1] / 1000;
+  return { reduction2030, E2030, E2050, E2100, cumul, netZero, dT, dTmin, dTmax, pts };
+}
+
+function majSimulateur() {
+  const r = calculerSimulation();
+  for (const l of LEVIERS) {
+    const el = $("#v-" + l.id);
+    if (el) el.textContent = S.leviers[l.id] + " % · " + fr(l.potentiel * S.leviers[l.id] / 100, 2) + " Gt";
+  }
+  const T = $("#simT");
+  if (!T) return;
+  const t = clamp(r.dT, 0.9, 5.2);
+  const coul = t < 1.6 ? "#2ecc71" : t < 2.1 ? "#a3d977" : t < 2.8 ? "#f1c40f" : t < 3.6 ? "#e67e22" : "#c0392b";
+  T.textContent = "+" + fr(r.dT, 2) + " °C";
+  T.style.color = coul;
+  $("#simCurseur").style.left = clamp((t - 1) / 4 * 100, 0, 100) + "%";
+
+  $("#simDetail").innerHTML = `
+    Réduction atteinte en 2030 : <b>${fr(r.reduction2030, 1)} GtCO₂/an</b> (émissions ${fr(r.E2030, 1)} Gt).<br>
+    Émissions 2050 : <b>${fr(r.E2050, 1)} Gt</b> · 2100 : <b>${fr(r.E2100, 1)} Gt</b>.<br>
+    CO₂ cumulé 2025-2100 : <b>${Math.round(r.cumul)} GtCO₂</b>.<br>
+    Net zéro CO₂ : <b>${r.netZero ? "vers " + r.netZero : "non atteint avant 2100"}</b>.<br>
+    Fourchette liée à l'incertitude du TCRE : +${fr(r.dTmin, 2)} à +${fr(r.dTmax, 2)} °C.
+    ${r.dT <= 1.6 ? "<br><span style='color:#7fe8bd'>Compatible avec l'objectif de 1,5 °C.</span>" :
+      r.dT <= 2.1 ? "<br><span style='color:#f1c40f'>Sous 2 °C, mais au-dessus de 1,5 °C.</span>" :
+      "<br><span style='color:#ff8a6b'>Au-dessus de la limite haute de l'accord de Paris.</span>"}`;
+
+  $("#simNote").textContent =
+    `Trajectoire construite à partir de quatre points (2025, 2030, 2050, 2100) selon la méthode décrite ci-dessous. ` +
+    `La zone grisée rappelle le budget carbone compatible avec 1,5 °C (${CADRE_PHYSIQUE.budgets[0].gt} GtCO₂).`;
+
+  if ($("#gSim")) grapheSimulation($("#gSim"), r);
+}
+
+/* =====================================================================
+   9. GRAPHIQUES (canvas 2D maison)
+   ===================================================================== */
+function prepCanvas(cv) {
+  const dpr = Math.min(devicePixelRatio, 2);
+  const w = cv.clientWidth || cv.parentElement.clientWidth - 24;
+  const h = +cv.getAttribute("height");
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.height = h + "px";
+  const x = cv.getContext("2d");
+  x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  x.clearRect(0, 0, w, h);
+  return { x, w, h };
+}
+function axes(x, w, h, m, ylabs, xlabs) {
+  x.strokeStyle = "rgba(255,255,255,.09)"; x.lineWidth = 1;
+  x.fillStyle = "#61748f"; x.font = "9px ui-monospace, monospace";
+  for (const [ty, lab] of ylabs) {
+    x.beginPath(); x.moveTo(m.l, ty); x.lineTo(w - m.r, ty); x.stroke();
+    x.textAlign = "right"; x.textBaseline = "middle";
+    x.fillText(lab, m.l - 5, ty);
+  }
+  for (const [tx, lab] of xlabs) {
+    x.textAlign = "center"; x.textBaseline = "top";
+    x.fillText(lab, tx, h - m.b + 4);
+  }
+}
+
+function grapheCO2Phanerozoique(cv) {
+  const { x, w, h } = prepCanvas(cv);
+  const m = { l: 36, r: 8, t: 8, b: 18 };
+  const P = CO2_PHANEROZOIQUE.points;
+  const X = ma => m.l + (1 - ma / 540) * (w - m.l - m.r);
+  const Y = v => h - m.b - (Math.log10(Math.max(v, 100)) - 2) / (Math.log10(8000) - 2) * (h - m.t - m.b);
+  axes(x, w, h, m, [[Y(200), "200"], [Y(1000), "1k"], [Y(4000), "4k"]],
+    [[X(540), "540 Ma"], [X(300), "300"], [X(150), "150"], [X(0), "auj."]]);
+
+  // enveloppe
+  x.beginPath();
+  P.forEach((p, i) => i ? x.lineTo(X(p.ma), Y(p.max)) : x.moveTo(X(p.ma), Y(p.max)));
+  for (let i = P.length - 1; i >= 0; i--) x.lineTo(X(P[i].ma), Y(P[i].min));
+  x.closePath();
+  const gr = x.createLinearGradient(0, m.t, 0, h - m.b);
+  gr.addColorStop(0, "rgba(231,126,34,.35)"); gr.addColorStop(1, "rgba(93,173,226,.25)");
+  x.fillStyle = gr; x.fill();
+  x.strokeStyle = "rgba(255,180,84,.5)"; x.lineWidth = 1; x.stroke();
+
+  // médiane
+  x.beginPath();
+  P.forEach((p, i) => { const y = Y((p.min + p.max) / 2); i ? x.lineTo(X(p.ma), y) : x.moveTo(X(p.ma), y); });
+  x.strokeStyle = "#ffb454"; x.lineWidth = 1.6; x.stroke();
+
+  // repères
+  const rep = [[252, "P-T", "#c0392b"], [66, "K-Pg", "#9b59b6"], [56, "PETM", "#e74c3c"]];
+  for (const [ma, lab, c] of rep) {
+    x.strokeStyle = c; x.setLineDash([2, 3]); x.beginPath();
+    x.moveTo(X(ma), m.t); x.lineTo(X(ma), h - m.b); x.stroke(); x.setLineDash([]);
+    x.fillStyle = c; x.textAlign = "center"; x.textBaseline = "top";
+    x.font = "8.5px ui-monospace, monospace"; x.fillText(lab, X(ma), m.t);
+  }
+  // niveau actuel
+  x.strokeStyle = "#fff"; x.setLineDash([3, 3]); x.beginPath();
+  x.moveTo(m.l, Y(424)); x.lineTo(w - m.r, Y(424)); x.stroke(); x.setLineDash([]);
+  x.fillStyle = "#fff"; x.textAlign = "left"; x.textBaseline = "bottom";
+  x.fillText("425 ppm (2024)", m.l + 3, Y(424) - 2);
+}
+
+function grapheCycles(cv) {
+  const { x, w, h } = prepCanvas(cv);
+  const m = { l: 32, r: 8, t: 10, b: 18 };
+  const P = CYCLES_GLACIAIRES.points.filter(p => p.ka > 0.05).slice().sort((a, b) => b.ka - a.ka);
+  const X = ka => m.l + (1 - ka / 800) * (w - m.l - m.r);
+  const Y = v => h - m.b - (v - 160) / (300 - 160) * (h - m.t - m.b);
+  axes(x, w, h, m, [[Y(180), "180"], [Y(240), "240"], [Y(300), "300"]],
+    [[X(800), "800 ka"], [X(400), "400"], [X(125), "125"], [X(0), "0"]]);
+
+  // bande glaciaire / interglaciaire
+  x.fillStyle = "rgba(93,173,226,.1)"; x.fillRect(m.l, Y(200), w - m.l - m.r, Y(180) - Y(200));
+  x.fillStyle = "rgba(69,214,154,.09)"; x.fillRect(m.l, Y(300), w - m.l - m.r, Y(270) - Y(300));
+
+  x.beginPath();
+  P.forEach((p, i) => { const px = X(p.ka), py = Y(p.co2); i ? x.lineTo(px, py) : x.moveTo(px, py); });
+  x.strokeStyle = "#8fd3f4"; x.lineWidth = 1.7; x.stroke();
+
+  // pics étiquetés
+  x.font = "8px ui-monospace, monospace"; x.textAlign = "center"; x.textBaseline = "bottom";
+  for (const p of P) {
+    if (!p.label || p.co2 < 275) continue;
+    x.fillStyle = "#a3d5f5"; x.beginPath(); x.arc(X(p.ka), Y(p.co2), 2.2, 0, 7); x.fill();
+    if (["MIS 5e — Eémien", "MIS 11 — long interglaciaire", "Dernier Maximum Glaciaire"].includes(p.label))
+      x.fillText(p.label.split(" —")[0], X(p.ka), Y(p.co2) - 4);
+  }
+  // aujourd'hui
+  x.strokeStyle = "#e74c3c"; x.lineWidth = 2; x.beginPath();
+  x.moveTo(X(0), Y(300)); x.lineTo(X(0), m.t); x.stroke();
+  x.fillStyle = "#e74c3c"; x.textAlign = "right"; x.textBaseline = "top";
+  x.fillText("425 ppm →", X(0) - 3, m.t);
+  x.fillStyle = "#61748f"; x.textAlign = "left"; x.textBaseline = "top";
+  x.fillText("Plafond des 800 000 dernières années : 300 ppm", m.l + 4, m.t + 1);
+}
+
+function grapheKeeling(cv) {
+  const { x, w, h } = prepCanvas(cv);
+  const m = { l: 34, r: 8, t: 10, b: 18 };
+  const X = an => m.l + (an - 1750) / (2030 - 1750) * (w - m.l - m.r);
+  const Y = v => h - m.b - (v - 260) / (440 - 260) * (h - m.t - m.b);
+  axes(x, w, h, m, [[Y(280), "280"], [Y(350), "350"], [Y(425), "425"]],
+    [[X(1750), "1750"], [X(1850), "1850"], [X(1950), "1950"], [X(2020), "2020"]]);
+
+  x.beginPath();
+  KEELING.glace.forEach((p, i) => i ? x.lineTo(X(p.an), Y(p.ppm)) : x.moveTo(X(p.an), Y(p.ppm)));
+  x.lineTo(X(KEELING.mesure[0].an), Y(KEELING.mesure[0].ppm));
+  x.strokeStyle = "#a3d5f5"; x.lineWidth = 1.5; x.setLineDash([4, 3]); x.stroke(); x.setLineDash([]);
+
+  x.beginPath();
+  KEELING.mesure.forEach((p, i) => i ? x.lineTo(X(p.an), Y(p.ppm)) : x.moveTo(X(p.an), Y(p.ppm)));
+  x.strokeStyle = "#e74c3c"; x.lineWidth = 2.1; x.stroke();
+  x.fillStyle = "#e74c3c";
+  KEELING.mesure.forEach(p => { x.beginPath(); x.arc(X(p.an), Y(p.ppm), 1.9, 0, 7); x.fill(); });
+
+  x.font = "8.5px ui-monospace, monospace"; x.fillStyle = "#a3d5f5";
+  x.textAlign = "left"; x.textBaseline = "bottom";
+  x.fillText("carottes de glace", m.l + 3, Y(272));
+  x.fillStyle = "#e74c3c"; x.textAlign = "right";
+  x.fillText("Mauna Loa (mesure) 424,6 ppm", w - m.r - 2, Y(424) - 5);
+
+  // plafond holocène
+  x.strokeStyle = "rgba(255,255,255,.28)"; x.setLineDash([2, 3]); x.beginPath();
+  x.moveTo(m.l, Y(285)); x.lineTo(w - m.r, Y(285)); x.stroke(); x.setLineDash([]);
+  x.fillStyle = "#61748f"; x.textAlign = "left"; x.textBaseline = "top";
+  x.fillText("niveau préindustriel 285 ppm", m.l + 3, Y(285) + 2);
+}
+
+function grapheTemperature(cv) {
+  const { x, w, h } = prepCanvas(cv);
+  const m = { l: 30, r: 10, t: 10, b: 18 };
+  const D = TEMPERATURE_MODERNE.decennies;
+  const X = an => m.l + (an - 1850) / (2030 - 1850) * (w - m.l - m.r);
+  const Y = v => h - m.b - (v + 0.35) / (2.0 + 0.35) * (h - m.t - m.b);
+  axes(x, w, h, m, [[Y(0), "0"], [Y(0.5), "+0,5"], [Y(1.0), "+1,0"], [Y(1.5), "+1,5"]],
+    [[X(1850), "1850"], [X(1920), "1920"], [X(1980), "1980"], [X(2024), "2024"]]);
+
+  for (const r of TEMPERATURE_MODERNE.reperes) {
+    x.strokeStyle = r.t === 1.5 ? "rgba(241,196,15,.5)" : "rgba(192,57,43,.5)";
+    x.setLineDash([4, 3]); x.beginPath();
+    x.moveTo(m.l, Y(r.t)); x.lineTo(w - m.r, Y(r.t)); x.stroke(); x.setLineDash([]);
+    x.fillStyle = r.t === 1.5 ? "#f1c40f" : "#e57373";
+    x.font = "8.5px ui-monospace, monospace"; x.textAlign = "left"; x.textBaseline = "bottom";
+    x.fillText(r.label, m.l + 3, Y(r.t) - 2);
+  }
+
+  // aire sous la courbe
+  x.beginPath(); x.moveTo(X(D[0].d), Y(0));
+  D.forEach(p => x.lineTo(X(p.d), Y(p.t)));
+  x.lineTo(X(D[D.length - 1].d), Y(0)); x.closePath();
+  const gr = x.createLinearGradient(0, m.t, 0, Y(0));
+  gr.addColorStop(0, "rgba(231,76,60,.4)"); gr.addColorStop(1, "rgba(231,76,60,0)");
+  x.fillStyle = gr; x.fill();
+
+  x.beginPath();
+  D.forEach((p, i) => i ? x.lineTo(X(p.d), Y(p.t)) : x.moveTo(X(p.d), Y(p.t)));
+  x.strokeStyle = "#ff7a5c"; x.lineWidth = 2.1; x.stroke();
+
+  for (const a of TEMPERATURE_MODERNE.annees) {
+    x.fillStyle = "#fff"; x.beginPath(); x.arc(X(a.an), Y(a.t), 2.4, 0, 7); x.fill();
+  }
+  const d24 = TEMPERATURE_MODERNE.annees.find(a => a.an === 2024);
+  x.fillStyle = "#fff"; x.font = "9px ui-monospace, monospace";
+  x.textAlign = "right"; x.textBaseline = "bottom";
+  x.fillText("2024 : +1,55 °C", w - m.r, Y(d24.t) - 5);
+}
+
+function grapheEmissions(cv) {
+  const { x, w, h } = prepCanvas(cv);
+  const m = { l: 30, r: 8, t: 10, b: 18 };
+  const P = EMISSIONS.points;
+  const X = an => m.l + (an - 1850) / (2030 - 1850) * (w - m.l - m.r);
+  const Y = v => h - m.b - v / 42 * (h - m.t - m.b);
+  axes(x, w, h, m, [[Y(0), "0"], [Y(20), "20"], [Y(37), "37"]],
+    [[X(1850), "1850"], [X(1950), "1950"], [X(2024), "2024"]]);
+  x.beginPath(); x.moveTo(X(1850), Y(0));
+  P.forEach(p => x.lineTo(X(p.an), Y(p.v)));
+  x.lineTo(X(2024), Y(0)); x.closePath();
+  const gr = x.createLinearGradient(0, m.t, 0, Y(0));
+  gr.addColorStop(0, "rgba(230,126,34,.45)"); gr.addColorStop(1, "rgba(230,126,34,0)");
+  x.fillStyle = gr; x.fill();
+  x.beginPath();
+  P.forEach((p, i) => i ? x.lineTo(X(p.an), Y(p.v)) : x.moveTo(X(p.an), Y(p.v)));
+  x.strokeStyle = "#e67e22"; x.lineWidth = 2; x.stroke();
+  x.fillStyle = "#e67e22"; x.font = "9px ui-monospace, monospace";
+  x.textAlign = "right"; x.textBaseline = "bottom";
+  x.fillText("37,4 GtCO₂ (2024)", w - m.r, Y(37.4) - 5);
+}
+
+function grapheSimulation(cv, r) {
+  const { x, w, h } = prepCanvas(cv);
+  const m = { l: 34, r: 10, t: 10, b: 18 };
+  const vmin = Math.min(-6, r.E2100 - 2), vmax = 46;
+  const X = an => m.l + (an - 2025) / 75 * (w - m.l - m.r);
+  const Y = v => h - m.b - (v - vmin) / (vmax - vmin) * (h - m.t - m.b);
+  axes(x, w, h, m, [[Y(0), "0"], [Y(20), "20"], [Y(40), "40"]],
+    [[X(2025), "2025"], [X(2050), "2050"], [X(2075), "2075"], [X(2100), "2100"]]);
+
+  // budget 1,5 °C : surface équivalente sous la courbe
+  x.fillStyle = "rgba(46,204,113,.12)";
+  const budget = CADRE_PHYSIQUE.budgets[0].gt;
+  const annesEq = budget / CADRE_PHYSIQUE.emissions2024;
+  x.fillRect(m.l, Y(CADRE_PHYSIQUE.emissions2024), X(2025 + annesEq) - m.l, Y(0) - Y(CADRE_PHYSIQUE.emissions2024));
+  x.fillStyle = "#45d69a"; x.font = "8.5px ui-monospace, monospace";
+  x.textAlign = "left"; x.textBaseline = "top";
+  x.fillText("budget 1,5 °C", m.l + 3, Y(CADRE_PHYSIQUE.emissions2024) + 3);
+
+  // zéro
+  x.strokeStyle = "rgba(255,255,255,.3)"; x.lineWidth = 1;
+  x.beginPath(); x.moveTo(m.l, Y(0)); x.lineTo(w - m.r, Y(0)); x.stroke();
+
+  // trajectoire
+  x.beginPath();
+  r.pts.forEach((p, i) => i ? x.lineTo(X(p[0]), Y(p[1])) : x.moveTo(X(p[0]), Y(p[1])));
+  const coul = r.dT < 1.6 ? "#2ecc71" : r.dT < 2.1 ? "#a3d977" : r.dT < 2.8 ? "#f1c40f" : r.dT < 3.6 ? "#e67e22" : "#c0392b";
+  x.strokeStyle = coul; x.lineWidth = 2.3; x.stroke();
+  x.fillStyle = coul;
+  r.pts.forEach(p => { x.beginPath(); x.arc(X(p[0]), Y(p[1]), 2.6, 0, 7); x.fill(); });
+
+  if (r.netZero) {
+    x.strokeStyle = "#fff"; x.setLineDash([3, 3]); x.beginPath();
+    x.moveTo(X(r.netZero), m.t); x.lineTo(X(r.netZero), h - m.b); x.stroke(); x.setLineDash([]);
+    x.fillStyle = "#fff"; x.textAlign = "center"; x.textBaseline = "top";
+    x.fillText("net zéro " + r.netZero, X(r.netZero), m.t);
+  }
+}
+
+/* =====================================================================
+   10. PILOTAGE GESTUEL — MediaPipe Hand Landmarker
+   Tout le traitement est local (WebAssembly dans le navigateur).
+   ===================================================================== */
+let handLandmarker = null, flux = null, boucleGestes = null;
+
+async function basculerGestes(actif) {
+  if (actif === S.gestes) return;
+  if (!actif) {
+    S.gestes = false;
+    if (boucleGestes) cancelAnimationFrame(boucleGestes);
+    if (flux) flux.getTracks().forEach(t => t.stop());
+    flux = null;
+    $("#camWrap").classList.add("hidden");
+    $("#hudGestes").classList.add("hidden");
+    $("#handCursor").classList.add("hidden");
+    $("#btnGestes").classList.remove("actif");
+    $("#btnGestes").textContent = "✋ Gestes";
+    return;
+  }
+  const btn = $("#btnGestes");
+  btn.textContent = "Chargement…";
+  const etape = t => { btn.textContent = t; $("#chargeGeste") && ($("#chargeGeste").textContent = t); };
+  try {
+    if (!handLandmarker) {
+      ouvrirModale(`<h2>Préparation du pilotage gestuel</h2>
+        <p>Le modèle de détection de main (environ 8 Mo) est téléchargé une seule fois, puis mis en cache
+        par le navigateur. Comptez une dizaine de secondes au premier lancement, puis c'est instantané.</p>
+        <p style="font-family:var(--mono);font-size:12px;color:var(--vert)" id="chargeGeste">Téléchargement…</p>
+        <p style="font-size:11.5px;color:#61748f">Le modèle s'exécute entièrement dans votre navigateur (WebAssembly).
+        Aucune image de la caméra ne quitte votre machine.</p>`);
+      etape("Téléchargement du moteur…");
+      const vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+      etape("Initialisation WebAssembly…");
+      const fileset = await vision.FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+      etape("Chargement du modèle de main…");
+      const options = delegate => ({
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate,
+        },
+        numHands: 1, runningMode: "VIDEO",
+        minHandDetectionConfidence: 0.55, minTrackingConfidence: 0.5,
+      });
+      try {
+        handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, options("GPU"));
+      } catch (e) {
+        etape("GPU indisponible, bascule sur le processeur…");
+        handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, options("CPU"));
+      }
+    }
+    etape("Ouverture de la caméra…");
+    flux = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" } });
+    const v = $("#cam");
+    v.srcObject = flux;
+    await v.play();
+    $("#camWrap").classList.remove("hidden");
+    $("#hudGestes").classList.remove("hidden");
+    btn.classList.add("actif"); btn.textContent = "✋ Gestes actifs";
+    S.gestes = true;
+    S.autoRotation = false;
+    boucleGeste();
+    ouvrirAide("gestes");
+  } catch (e) {
+    console.error(e);
+    btn.textContent = "✋ Gestes";
+    ouvrirModale(`<h2>Caméra indisponible</h2>
+      <p>${e.name === "NotAllowedError"
+        ? "L'accès à la caméra a été refusé. Autorisez-le dans les réglages du navigateur pour ce site, puis réessayez."
+        : "Impossible d'initialiser la détection de main : " + e.message}</p>
+      <p>Le pilotage gestuel nécessite une connexion (le modèle est chargé depuis un CDN) et une page servie
+      en <b>http://localhost</b> ou en HTTPS — les navigateurs bloquent la caméra sur <code>file://</code>.</p>
+      <p>Toute l'application reste utilisable à la souris, au clavier et au doigt.</p>`);
+  }
+}
+
+/* --- Analyse des 21 points de la main ---
+   Principe : le geste est identifié par la FORME des doigts (lesquels sont tendus),
+   jamais par la grandeur qui sert ensuite à piloter. Sans quoi, dès qu'on bouge pour
+   agir, la détection décroche — c'était le défaut de la première version du zoom. */
+function analyserMain(lm, gestePrecedent = "aucun") {
+  const d = (a, b) => Math.hypot(lm[a].x - lm[b].x, lm[a].y - lm[b].y);
+  const taille = d(0, 9) || 0.001;                       // paume, pour normaliser
+  const tendu = (tip, pip) => d(0, tip) > d(0, pip) * 1.12;
+  const doigts = {
+    index: tendu(8, 6), majeur: tendu(12, 10),
+    annulaire: tendu(16, 14), auriculaire: tendu(20, 18),
+  };
+  const n = Object.values(doigts).filter(Boolean).length;
+  const ecart = d(4, 8) / taille;                        // écartement pouce ↔ index
+  const troisReplies = !doigts.majeur && !doigts.annulaire && !doigts.auriculaire;
+
+  let geste = "aucun", conf = 0.5;
+  if (n >= 4) { geste = "paume"; conf = 0.9; }
+  else if (doigts.index && doigts.majeur && !doigts.annulaire && !doigts.auriculaire) { geste = "deux"; conf = 0.9; }
+  else if (doigts.index && troisReplies) { geste = "pince"; conf = 0.85; }
+  // Hystérésis : doigts complètement joints, l'index se replie et la main ressemble
+  // à un poing. Tant qu'on venait du zoom et que le pouce reste collé à l'index,
+  // on reste en zoom — sinon le geste décrocherait pile en butée basse.
+  else if (gestePrecedent === "pince" && troisReplies && ecart < 0.6) { geste = "pince"; conf = 0.7; }
+  else if (n === 0) { geste = "poing"; conf = 0.85; }
+
+  return { geste, conf: clamp(conf, 0, 1), ecart, taille, paume: lm[9], index: lm[8], pouce: lm[4] };
+}
+
+/* Zoom en correspondance ABSOLUE : l'écartement pouce-index EST le niveau de zoom.
+   Doigts joints = vue lointaine, doigts grands ouverts = vue rapprochée.
+   Aucune dérive possible, aucun ancrage à perdre, aucune inversion. */
+const ZOOM = { ecartMin: 0.22, ecartMax: 1.30, distLoin: 6.0, distPres: 1.6 };
+function niveauZoom(ecart) { return clamp((ecart - ZOOM.ecartMin) / (ZOOM.ecartMax - ZOOM.ecartMin), 0, 1); }
+
+const ARETES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+let hist = [], derniere = null, dernierTemps = 0;
+
+function boucleGeste() {
+  const v = $("#cam"), ov = $("#camOverlay");
+  if (!S.gestes) return;
+  boucleGestes = requestAnimationFrame(boucleGeste);
+  if (v.readyState < 2) return;
+
+  const t = performance.now();
+  if (t - dernierTemps < 33) return;                    // ~30 fps suffisent
+  dernierTemps = t;
+
+  let res;
+  try { res = handLandmarker.detectForVideo(v, t); } catch { return; }
+
+  ov.width = v.videoWidth || 320; ov.height = v.videoHeight || 240;
+  const c = ov.getContext("2d");
+  c.clearRect(0, 0, ov.width, ov.height);
+
+  if (!res.landmarks || !res.landmarks.length) {
+    hist = []; derniere = null;
+    majHUD("aucun", 0);
+    $("#handCursor").classList.add("hidden");
+    return;
+  }
+
+  const lm = res.landmarks[0];
+  const a = analyserMain(lm, S.geste);
+
+  // squelette
+  c.strokeStyle = "rgba(69,214,154,.85)"; c.lineWidth = 2;
+  for (const [i, j] of ARETES) {
+    c.beginPath();
+    c.moveTo(lm[i].x * ov.width, lm[i].y * ov.height);
+    c.lineTo(lm[j].x * ov.width, lm[j].y * ov.height);
+    c.stroke();
+  }
+  c.fillStyle = "#fff";
+  lm.forEach(p => { c.beginPath(); c.arc(p.x * ov.width, p.y * ov.height, 2.6, 0, 7); c.fill(); });
+
+  // hystérésis : 3 images cohérentes avant de changer de geste
+  hist.push(a.geste); if (hist.length > 4) hist.shift();
+  const stable = hist.length >= 3 && hist.slice(-3).every(g => g === a.geste);
+  if (stable) S.geste = a.geste;
+  majHUD(S.geste, a.conf);
+
+  // curseur à l'écran (coordonnées miroir pour un ressenti naturel)
+  const cx = (1 - a.index.x) * innerWidth, cy = a.index.y * innerHeight;
+  const hc = $("#handCursor");
+  hc.classList.remove("hidden");
+  hc.style.left = cx + "px"; hc.style.top = cy + "px";
+  hc.querySelector(".hc-label").textContent = LIBELLE_GESTE[S.geste] || "";
+
+  const paumeX = 1 - a.paume.x, paumeY = a.paume.y;
+
+  if (S.geste === "paume") {
+    if (derniere) {
+      cam.azim -= (paumeX - derniere.x) * 5.2;
+      cam.polar = clamp(cam.polar + (paumeY - derniere.y) * 4.4, 0.22, Math.PI - 0.22);
+    }
+    S.autoRotation = false;
+    majZoomHUD(null);
+  } else if (S.geste === "pince") {
+    const f = niveauZoom(a.ecart);
+    const cible = ZOOM.distLoin + f * (ZOOM.distPres - ZOOM.distLoin);
+    cam.cibleDist += (cible - cam.cibleDist) * 0.18;     // lissage
+    S.autoRotation = false;
+    majZoomHUD(f);
+  } else if (S.geste === "deux") {
+    const p = clamp((paumeX - 0.15) / 0.7, 0, 1);
+    if (S.lecture) basculerLecture(false);
+    allerA(p);
+    majZoomHUD(null);
+  } else if (S.geste === "poing") {
+    S.autoRotation = false;
+    if (stable && hist.filter(g => g === "poing").length === 3) {
+      // premier verrouillage : on cale sur le chapitre le plus proche
+      allerA(anneeVersP(S.chapitre.annee), true);
+    }
+    majZoomHUD(null);
+  } else majZoomHUD(null);
+
+  derniere = { x: paumeX, y: paumeY };
+}
+
+const LIBELLE_GESTE = { paume: "rotation", pince: "zoom", deux: "temps", poing: "figé", aucun: "" };
+const NOM_GESTE = { paume: "🖐 Main ouverte", pince: "🤏 Pouce + index", deux: "✌️ Deux doigts", poing: "✊ Poing", aucun: "— aucune main" };
+
+function majHUD(g, conf) {
+  $("#hudGeste").textContent = NOM_GESTE[g] || "—";
+  $("#hudJauge").style.width = Math.round(conf * 100) + "%";
+  $$("#hudGestes .hud-liste li").forEach(li => li.classList.toggle("on", li.dataset.g === g));
+}
+
+/** Règle de zoom affichée en direct : on voit où l'on est sur l'échelle. */
+function majZoomHUD(f) {
+  const bloc = $("#hudZoom");
+  if (!bloc) return;
+  if (f === null) { bloc.classList.add("hidden"); return; }
+  bloc.classList.remove("hidden");
+  $("#hudZoomCurseur").style.left = (f * 100) + "%";
+  $("#hudZoomVal").textContent = f < 0.2 ? "vue lointaine" : f > 0.8 ? "vue rapprochée" : Math.round(f * 100) + " %";
+}
+
+/* =====================================================================
+   11. NARRATION — synthèse vocale du navigateur (Web Speech API)
+   Tout est local : aucune requête réseau, aucun texte envoyé nulle part.
+   ===================================================================== */
+const N = {
+  actif: false, enPause: false, file: [], index: 0,
+  chapitre: null, voix: null, vitesse: 0.84, gravite: 0.7, enchainer: false,
+  veille: null, gen: 0,          // `gen` invalide les échos des énoncés annulés
+};
+
+function voixDisponibles() {
+  return speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang));
+}
+
+/** Choisit la voix la plus « voix off » disponible : française, masculine si possible. */
+function meilleureVoix(liste) {
+  if (!liste.length) return null;
+  const graves = /paul|thierry|claude|guillaume|nicolas|henri|rémy|remy|male|homme/i;
+  return liste.find(v => graves.test(v.name))
+      || liste.find(v => /fr-FR/i.test(v.lang) && !/google/i.test(v.name))
+      || liste.find(v => /fr-FR/i.test(v.lang))
+      || liste[0];
+}
+
+function remplirVoix() {
+  const sel = $("#narVoix");
+  if (!sel) return;
+  const liste = voixDisponibles();
+  if (!liste.length) { sel.innerHTML = `<option>aucune voix française</option>`; return; }
+  if (!N.voix || !liste.includes(N.voix)) N.voix = meilleureVoix(liste);
+  sel.innerHTML = liste.map((v, i) =>
+    `<option value="${i}" ${v === N.voix ? "selected" : ""}>${v.name.replace(/Microsoft |Google /, "")}</option>`).join("");
+  sel.onchange = () => { N.voix = voixDisponibles()[+sel.value]; if (N.actif) relancerDepuisIndex(); };
+}
+
+function narrationDuChapitre(ch) {
+  return NARRATIONS[ch.id] || ch.recit || [];
+}
+
+function demarrerNarration(ch) {
+  N.chapitre = ch;
+  N.file = narrationDuChapitre(ch);
+  N.index = 0;
+  N.enPause = false;
+  $("#narPlay").textContent = "❚❚";
+  dire();
+}
+
+function dire() {
+  const gen = ++N.gen;                       // toute reprise invalide la précédente
+  speechSynthesis.cancel();
+  if (!N.actif || N.index >= N.file.length) { finChapitre(); return; }
+  const texte = N.file[N.index];
+  afficherSousTitre(texte);
+  const u = new SpeechSynthesisUtterance(texte);
+  if (N.voix) { u.voice = N.voix; u.lang = N.voix.lang; } else u.lang = "fr-FR";
+  u.rate = N.vitesse; u.pitch = N.gravite; u.volume = 1;
+  const suivant = () => {
+    if (gen !== N.gen || !N.actif || N.enPause) return;
+    N.index++;
+    // une respiration entre les phrases : c'est ce qui fait le ton documentaire
+    setTimeout(() => { if (gen === N.gen && N.actif && !N.enPause) dire(); }, 620);
+  };
+  u.onend = suivant;
+  u.onerror = e => { if (e.error !== "interrupted" && e.error !== "canceled") suivant(); };
+  // Chrome peut ignorer un speak() émis dans la foulée immédiate d'un cancel()
+  setTimeout(() => { if (gen === N.gen && N.actif && !N.enPause) speechSynthesis.speak(u); }, 60);
+}
+
+function relancerDepuisIndex() { if (N.actif) dire(); }
+
+function finChapitre() {
+  if (!N.actif) return;
+  if (N.enchainer) {
+    const i = CHAPITRES.indexOf(N.chapitre);
+    if (i < CHAPITRES.length - 1) {
+      afficherSousTitre("…");
+      setTimeout(() => {
+        if (!N.actif) return;
+        const suivant = CHAPITRES[i + 1];
+        allerA(anneeVersP(suivant.annee), true);
+        demarrerNarration(suivant);
+      }, 2200);
+      return;
+    }
+  }
+  afficherSousTitre("Fin du chapitre. Choisissez-en un autre, ou activez « enchaîner ».");
+  $("#narPlay").textContent = "▶";
+  N.enPause = true;
+}
+
+function afficherSousTitre(t) {
+  const el = $("#narTexte");
+  el.style.opacity = 0;
+  setTimeout(() => { el.textContent = t; el.style.opacity = 1; }, 130);
+}
+
+function basculerNarration(actif) {
+  if (actif === N.actif) return;
+  const btn = $("#btnNarration");
+  if (!actif) {
+    N.actif = false;
+    speechSynthesis.cancel();
+    clearInterval(N.veille);
+    $("#narration").classList.add("hidden");
+    btn.classList.remove("actif");
+    btn.textContent = "🎙 Narration";
+    return;
+  }
+  if (!("speechSynthesis" in window)) {
+    ouvrirModale(`<h2>Synthèse vocale indisponible</h2>
+      <p>Ce navigateur ne propose pas d'API de synthèse vocale. Les textes de narration restent
+      lisibles dans le panneau de droite, sous « Le récit, à voix haute ».</p>`);
+    return;
+  }
+  N.actif = true;
+  remplirVoix();
+  $("#narration").classList.remove("hidden");
+  btn.classList.add("actif");
+  btn.textContent = "🎙 En cours";
+  if (S.mode !== "histoire") { S.mode = "histoire"; majModes(); rendreContenu(); }
+  // Chrome interrompt les énoncés longs : on relance la file toutes les dix secondes
+  clearInterval(N.veille);
+  N.veille = setInterval(() => {
+    if (N.actif && !N.enPause && speechSynthesis.speaking && !speechSynthesis.paused) {
+      speechSynthesis.pause(); speechSynthesis.resume();
+    }
+  }, 9000);
+  demarrerNarration(S.chapitre);
+}
+
+function initNarration() {
+  $("#btnNarration").onclick = () => basculerNarration(!N.actif);
+  $("#narStop").onclick = () => basculerNarration(false);
+  $("#narPlay").onclick = () => {
+    N.enPause = !N.enPause;
+    $("#narPlay").textContent = N.enPause ? "▶" : "❚❚";
+    if (N.enPause) { N.gen++; speechSynthesis.cancel(); }
+    else { if (N.index >= N.file.length) N.index = 0; dire(); }
+  };
+  $("#narSuite").onchange = e => { N.enchainer = e.target.checked; };
+  $("#narVitesse").oninput = e => { N.vitesse = +e.target.value; if (N.actif && !N.enPause) dire(); };
+  $("#narGrave").oninput = e => { N.gravite = +e.target.value; if (N.actif && !N.enPause) dire(); };
+  if ("speechSynthesis" in window) {
+    speechSynthesis.onvoiceschanged = remplirVoix;
+    remplirVoix();
+  }
+}
+
+/** Appelé à chaque changement de chapitre : la narration suit le voyage. */
+function narrationSuitChapitre(ch) {
+  if (N.actif && ch !== N.chapitre) demarrerNarration(ch);
+}
+
+/* =====================================================================
+   12. AIDE
+   ===================================================================== */
+function ouvrirModale(html) {
+  $("#modaleContenu").innerHTML = html;
+  $("#modale").classList.remove("hidden");
+}
+
+function ouvrirAide(section) {
+  ouvrirModale(`
+    <h2>Comment utiliser cette application</h2>
+    <p>Tout est pilotable de trois façons : à la souris, au clavier, ou à la main devant la caméra.
+    Aucune n'est obligatoire — les gestes sont un supplément, jamais un passage obligé.</p>
+
+    <h3>Les quatre gestes</h3>
+    <div class="geste-carte"><div class="geste-emoji">🖐</div><div>
+      <div class="geste-nom">Main ouverte — tourner la Terre</div>
+      <div class="geste-desc">Ouvrez la paume face à la caméra et déplacez la main. Le globe suit le mouvement.</div></div></div>
+    <div class="geste-carte"><div class="geste-emoji">🤏</div><div>
+      <div class="geste-nom">Pouce + index seuls — zoomer</div>
+      <div class="geste-desc">Tendez l'index et repliez les trois autres doigts. L'écartement entre le pouce et
+      l'index <b>est</b> le niveau de zoom : doigts joints = vue lointaine, doigts grands ouverts = vue rapprochée.
+      La correspondance est absolue, donc il n'y a jamais d'inversion : votre main indique directement où vous voulez être.
+      Une jauge s'affiche pendant le geste.</div></div></div>
+    <div class="geste-carte"><div class="geste-emoji">✌️</div><div>
+      <div class="geste-nom">Deux doigts — voyager dans le temps</div>
+      <div class="geste-desc">Index et majeur tendus : la position horizontale de la main devient la position sur la frise.
+      À gauche l'Hadéen, à droite 2100.</div></div></div>
+    <div class="geste-carte"><div class="geste-emoji">✊</div><div>
+      <div class="geste-nom">Poing fermé — figer</div>
+      <div class="geste-desc">Verrouille la vue et cale la frise sur le chapitre le plus proche.</div></div></div>
+    <p style="font-size:11.5px;color:#61748f">La détection tourne entièrement dans votre navigateur (WebAssembly).
+    Aucune image n'est envoyée nulle part. Bonne lumière + fond dégagé = détection nettement plus stable.</p>
+
+    <h3>La narration</h3>
+    <p>Le bouton <b>🎙 Narration</b> lit le chapitre en cours à voix haute, dans un registre de voix off
+    documentaire, avec les sous-titres au bas de l'écran. Vous pouvez choisir la voix, ralentir le débit et
+    baisser la hauteur — trois réglages qui changent beaucoup le ton. Cochez <b>enchaîner</b> pour dérouler
+    toute l'histoire, de l'Hadéen à 2100, sans rien toucher.</p>
+    <p>Voyager dans le temps pendant la lecture change le chapitre narré : la voix suit le voyage.
+    Tout se passe dans le navigateur, aucun texte n'est envoyé nulle part.</p>
+
+    <h3>Souris et tactile</h3>
+    <p>Glisser sur le globe pour le tourner · molette ou pincement à deux doigts pour zoomer ·
+    cliquer-glisser sur la frise pour voyager dans le temps · cliquer un chapitre à gauche ou une région à droite.</p>
+
+    <h3>Clavier</h3>
+    <p><kbd>←</kbd> <kbd>→</kbd> chapitre précédent / suivant · <kbd>Espace</kbd> lecture automatique ·
+    <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>1</kbd>–<kbd>5</kbd> changer d'onglet · <kbd>G</kbd> gestes ·
+    <kbd>N</kbd> narration · <kbd>?</kbd> cette aide · <kbd>Échap</kbd> fermer.</p>
+
+    <h3>Lire les données</h3>
+    <p>Chaque chiffre porte une source, et chaque série un statut de fiabilité :
+    <span class="badge mesure">Mesure directe</span> <span class="badge carotte">Carotte de glace</span>
+    <span class="badge proxy">Proxy</span> <span class="badge modele">Projection</span>.
+    Les températures sont toujours des écarts par rapport à la période 1850-1900.
+    Le détail de la méthode est dans l'onglet <b>Méthode &amp; sources</b>.</p>
+  `);
+}

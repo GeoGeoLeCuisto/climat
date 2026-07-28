@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>CLIMAT — 4,54 milliards d'années en un geste</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- ============ ÉCRAN DE CHARGEMENT ============ -->
+<div id="boot">
+  <div class="boot-inner">
+    <div class="boot-title">CLIMAT</div>
+    <div class="boot-sub">4,54 milliards d'années en un geste</div>
+    <div class="boot-bar"><div class="boot-bar-fill" id="bootBar"></div></div>
+    <div class="boot-status" id="bootStatus">Initialisation…</div>
+  </div>
+</div>
+
+<!-- ============ APPLICATION ============ -->
+<div id="app" class="hidden">
+
+  <!-- Scène 3D -->
+  <canvas id="scene"></canvas>
+  <div id="globeBadge"></div>
+
+  <!-- Vidéo caméra + squelette de main -->
+  <div id="camWrap" class="hidden">
+    <video id="cam" playsinline muted></video>
+    <canvas id="camOverlay"></canvas>
+    <div id="camLabel">Caméra — traitement local, aucune image n'est transmise</div>
+    <button id="camClose" title="Couper la caméra">✕</button>
+  </div>
+
+  <!-- Curseur piloté par la main -->
+  <div id="handCursor" class="hidden"><div class="hc-dot"></div><div class="hc-label"></div></div>
+
+  <!-- ---------- EN-TÊTE ---------- -->
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand-mark">🌍</span>
+      <span class="brand-text"><b>CLIMAT</b><em>4,54 milliards d'années en un geste</em></span>
+    </div>
+    <nav id="modes">
+      <button class="mode-btn active" data-mode="parcours">Comprendre en 10 min</button>
+      <button class="mode-btn" data-mode="histoire">Histoire</button>
+      <button class="mode-btn" data-mode="consequences">Conséquences</button>
+      <button class="mode-btn" data-mode="solutions">Solutions</button>
+      <button class="mode-btn" data-mode="idees">Idées reçues</button>
+      <button class="mode-btn" data-mode="methode">Méthode &amp; sources</button>
+    </nav>
+    <div class="top-actions">
+      <button id="btnNarration" class="pill" title="Écouter le récit à voix haute">🎙 Narration</button>
+      <button id="btnGestes" class="pill" title="Activer le pilotage par la caméra">✋ Gestes</button>
+      <button id="btnAide" class="pill ghost" title="Aide et raccourcis">?</button>
+    </div>
+  </header>
+
+  <!-- ---------- PANNEAU GAUCHE : chapitres ---------- -->
+  <aside id="chapitres" class="panel">
+    <div class="panel-head">
+      <span>Chronologie</span>
+      <button id="btnPlay" class="mini" title="Lecture automatique">▶</button>
+    </div>
+    <div id="chapList"></div>
+  </aside>
+
+  <!-- ---------- PANNEAU DROIT : contenu ---------- -->
+  <aside id="contenu" class="panel">
+    <div id="contenuInner"></div>
+  </aside>
+
+  <!-- ---------- FRISE CHRONOLOGIQUE ---------- -->
+  <footer id="frise">
+    <div id="friseEres"></div>
+    <div id="frisePiste">
+      <div id="friseFill"></div>
+      <div id="friseTicks"></div>
+      <div id="friseMarqueurs"></div>
+      <div id="friseCurseur"><div class="curseur-tete"></div></div>
+    </div>
+    <div id="friseInfos">
+      <div class="fi-bloc"><span class="fi-lab">Époque</span><b id="fiEpoque">—</b></div>
+      <div class="fi-bloc"><span class="fi-lab">Date</span><b id="fiDate">—</b></div>
+      <div class="fi-bloc"><span class="fi-lab">CO₂</span><b id="fiCo2">—</b></div>
+      <div class="fi-bloc"><span class="fi-lab">Température</span><b id="fiTemp">—</b></div>
+      <div class="fi-bloc"><span class="fi-lab">Niveau marin</span><b id="fiMer">—</b></div>
+      <div class="fi-bloc statut"><span class="fi-lab">Statut donnée</span><b id="fiStatut">—</b></div>
+    </div>
+  </footer>
+
+  <!-- ---------- HUD GESTES ---------- -->
+  <div id="hudGestes" class="hidden">
+    <div class="hud-titre">Geste détecté</div>
+    <div class="hud-geste" id="hudGeste">—</div>
+    <div class="hud-jauge"><div id="hudJauge"></div></div>
+    <div id="hudZoom" class="hidden">
+      <div class="hz-head"><span>Zoom</span><b id="hudZoomVal">—</b></div>
+      <div class="hz-piste">
+        <div class="hz-curseur" id="hudZoomCurseur"></div>
+      </div>
+      <div class="hz-legende"><span>doigts joints</span><span>doigts écartés</span></div>
+    </div>
+    <ul class="hud-liste">
+      <li data-g="paume"><span>🖐</span> Main ouverte — tourner la Terre</li>
+      <li data-g="pince"><span>🤏</span> Pouce + index seuls — écarter&nbsp;= zoomer</li>
+      <li data-g="deux"><span>✌️</span> Deux doigts — voyager dans le temps</li>
+      <li data-g="poing"><span>✊</span> Poing — figer / valider</li>
+    </ul>
+  </div>
+
+  <!-- ---------- NARRATION ---------- -->
+  <div id="narration" class="hidden">
+    <div id="narBarre">
+      <button id="narPlay" class="nar-btn" title="Lecture / pause">❚❚</button>
+      <div id="narTexte"></div>
+      <div class="nar-reglages">
+        <select id="narVoix" title="Voix"></select>
+        <label title="Vitesse">Vitesse <input type="range" id="narVitesse" min="0.6" max="1.1" step="0.02" value="0.84"></label>
+        <label title="Gravité de la voix">Gravité <input type="range" id="narGrave" min="0.4" max="1.2" step="0.05" value="0.7"></label>
+        <label class="nar-check" title="Passer au chapitre suivant à la fin"><input type="checkbox" id="narSuite"> enchaîner</label>
+        <button id="narStop" class="nar-btn" title="Arrêter la narration">✕</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ MODALE AIDE ============ -->
+<div id="modale" class="hidden">
+  <div class="modale-boite">
+    <button id="modaleClose" class="modale-close">✕</button>
+    <div id="modaleContenu"></div>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
