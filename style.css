@@ -378,6 +378,17 @@ a:hover{ border-bottom-color:var(--accent); }
   color:var(--texte-doux); font-size:10.5px; padding:3px 6px; text-transform:none;
   letter-spacing:0; max-width:150px; cursor:pointer;
 }
+.nar-langue{ display:flex; gap:2px; background:rgba(255,255,255,.05);
+  border:1px solid var(--bord); border-radius:7px; padding:2px; }
+.nl-btn{ padding:2px 8px; border-radius:5px; font-size:9.5px; letter-spacing:.08em;
+  color:var(--texte-faible); transition:.15s; }
+.nl-btn:hover{ color:var(--texte); }
+.nl-btn.actif{ background:rgba(79,195,247,.22); color:#bfe6ff; }
+#narConseil{ grid-column:1 / -1; font-size:10.2px; color:var(--texte-faible);
+  line-height:1.45; padding-top:6px; }
+#narConseil .ok{ color:var(--vert); }
+#narConseil .alerte{ color:var(--accent-2); }
+#narConseil b{ color:#bfe6ff; }
 .nar-check{ cursor:pointer; }
 .nar-check input{ accent-color:var(--accent); }
 .nar-reglages #narStop{ margin-left:auto; }
@@ -391,6 +402,13 @@ a:hover{ border-bottom-color:var(--accent); }
 .narration-texte p{ font-family:var(--serif); font-size:13.6px; line-height:1.6;
   color:#c9dcef; margin-bottom:8px; }
 .narration-texte p:last-child{ margin-bottom:0; }
+.narration-bascule{ display:flex; gap:6px; margin-top:11px; padding-top:10px;
+  border-top:1px solid rgba(79,195,247,.16); }
+.nb-btn{ flex:1; padding:6px; border-radius:8px; font-size:11.5px;
+  background:rgba(255,255,255,.04); border:1px solid var(--bord); color:var(--texte-faible);
+  transition:.15s; }
+.nb-btn:hover{ color:var(--texte); background:rgba(255,255,255,.08); }
+.nb-btn.actif{ background:rgba(79,195,247,.16); border-color:rgba(79,195,247,.34); color:#bfe6ff; }
 
 /* =====================================================================
    BLOCS DE CONTENU (conséquences / solutions / etc.)

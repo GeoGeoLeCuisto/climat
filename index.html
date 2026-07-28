@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>CLIMAT — 4,54 milliards d'années en un geste</title>
-<link rel="stylesheet" href="style.css">
+<!-- Le suffixe ?v= force le navigateur a recharger apres chaque publication.
+     Il est mis a jour automatiquement par outils/version.py, et app.js le
+     propage lui-meme a data.js et paleo.js. Ne pas modifier a la main. -->
+<link rel="stylesheet" href="style.css?v=202607282116">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <script type="importmap">
 {
@@ -136,12 +139,17 @@
       <button id="narPlay" class="nar-btn" title="Lecture / pause">❚❚</button>
       <div id="narTexte"></div>
       <div class="nar-reglages">
+        <div class="nar-langue" title="Langue de la narration">
+          <button class="nl-btn actif" data-langue="fr">FR</button>
+          <button class="nl-btn" data-langue="en">EN</button>
+        </div>
         <select id="narVoix" title="Voix"></select>
         <label title="Vitesse">Vitesse <input type="range" id="narVitesse" min="0.6" max="1.1" step="0.02" value="0.84"></label>
         <label title="Gravité de la voix">Gravité <input type="range" id="narGrave" min="0.4" max="1.2" step="0.05" value="0.7"></label>
         <label class="nar-check" title="Passer au chapitre suivant à la fin"><input type="checkbox" id="narSuite"> enchaîner</label>
         <button id="narStop" class="nar-btn" title="Arrêter la narration">✕</button>
       </div>
+      <div id="narConseil"></div>
     </div>
   </div>
 
@@ -155,6 +163,6 @@
   </div>
 </div>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=202607282116"></script>
 </body>
 </html>

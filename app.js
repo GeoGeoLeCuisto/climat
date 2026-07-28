@@ -4,13 +4,20 @@
    ===================================================================== */
 
 import * as THREE from "three";
-import {
+
+/* Version de publication, lue depuis le « ?v= » de la balise <script> qui charge
+   ce fichier, puis propagée à data.js et paleo.js. Une seule valeur à changer
+   dans index.html, et plus aucun fichier ne peut rester coincé dans le cache
+   du navigateur après une mise en ligne. */
+const V = new URL(import.meta.url).search;
+
+const {
   META, CHAPITRES, pVersAnnee, anneeVersP, formatAnnee,
   CO2_PHANEROZOIQUE, CYCLES_GLACIAIRES, KEELING, TEMPERATURE_MODERNE, EMISSIONS,
   SCENARIOS, SCENARIO_SOURCE, CONSEQUENCES, REGIONS,
-  CADRE_PHYSIQUE, LEVIERS, LEVIERS_SOURCE, FOCUS_CIMENT, IDEES_RECUES, METHODE, NARRATIONS,
-  PARCOURS, AGIR, SURFACES, EVENEMENTS,
-} from "./data.js";
+  CADRE_PHYSIQUE, LEVIERS, LEVIERS_SOURCE, FOCUS_CIMENT, IDEES_RECUES, METHODE,
+  NARRATIONS, NARRATIONS_EN, PARCOURS, AGIR, SURFACES, EVENEMENTS,
+} = await import("./data.js" + V);
 
 /* =====================================================================
    ÉTAT GLOBAL
@@ -100,7 +107,7 @@ let PALEO = null, PALEO_AGES = [], PALEO_SOURCE = null;
 
 async function chargerPaleo() {
   try {
-    const m = await import("./paleo.js");
+    const m = await import("./paleo.js" + V);
     PALEO = m.PALEO; PALEO_AGES = m.PALEO_AGES; PALEO_SOURCE = m.PALEO_SOURCE;
   } catch (e) {
     console.warn("Paléogéographie indisponible — géographie actuelle utilisée partout.", e.message);
@@ -1110,10 +1117,14 @@ function vueHistoire() {
 
     <div class="c-recit">${c.recit.map(p => `<p>${p}</p>`).join("")}</div>
 
-    <div class="c-h">Le récit, à voix haute</div>
+    <div class="c-h">Le récit, à voix haute ${N.langue === "en" ? "· English" : "· français"}</div>
     <div class="narration-bloc">
       <button class="btn-ecouter" id="btnEcouter">🎙 Écouter ce chapitre</button>
       <div class="narration-texte">${narrationDuChapitre(c).map(p => `<p>${p}</p>`).join("")}</div>
+      <div class="narration-bascule">
+        <button class="nb-btn ${N.langue === "fr" ? "actif" : ""}" data-langue="fr">Français</button>
+        <button class="nb-btn ${N.langue === "en" ? "actif" : ""}" data-langue="en">English</button>
+      </div>
     </div>
 
     ${grapheDuChapitre(c)}
@@ -1395,6 +1406,9 @@ function brancherContenu() {
 
   // lancer un événement animé
   $$("[data-evt]").forEach(el => el.onclick = () => lancerEvenement(el.dataset.evt));
+
+  // bascule de langue depuis le panneau
+  $$(".nb-btn").forEach(el => el.onclick = () => changerLangue(el.dataset.langue));
 
   // écouter le chapitre courant
   const ecouter = $("#btnEcouter");
@@ -1951,35 +1965,96 @@ const N = {
   actif: false, enPause: false, file: [], index: 0,
   chapitre: null, voix: null, vitesse: 0.84, gravite: 0.7, enchainer: false,
   veille: null, gen: 0,          // `gen` invalide les échos des énoncés annulés
+  langue: "fr",
 };
 
-function voixDisponibles() {
-  return speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang));
+function voixDisponibles(langue = N.langue) {
+  const p = langue === "en" ? /^en/i : /^fr/i;
+  return speechSynthesis.getVoices().filter(v => p.test(v.lang));
 }
 
-/** Choisit la voix la plus « voix off » disponible : française, masculine si possible. */
+/* Toutes les voix du navigateur ne se valent pas, et l'écart est énorme :
+   - « Natural » / « Online » : voix neuronales de Microsoft Edge, gratuites,
+     de très loin les meilleures. Elles n'existent que dans Edge.
+   - « Google … » : voix réseau de Chrome, correctes, au-dessus du système.
+   - le reste : voix locales du système, robotiques.
+   On classe, on choisit la meilleure, et on affiche le niveau à l'utilisateur. */
+function niveauVoix(v) {
+  if (/natural|neural|online/i.test(v.name)) return 3;
+  if (/^google/i.test(v.name)) return 2;
+  return 1;
+}
+const NIVEAU_LIBELLE = { 3: "neuronale", 2: "réseau", 1: "système" };
+
+/** Prénoms masculins des voix courantes : le registre voix off passe mieux. */
+const VOIX_MASCULINES = /henri|paul|thierry|claude|guillaume|nicolas|rémy|remy|alain|yves|guy|christopher|brian|eric|davis|roger|steffan|tony|andrew|george|ryan|daniel|male\b/i;
+
+function scoreVoix(v) {
+  return niveauVoix(v) * 10
+    + (VOIX_MASCULINES.test(v.name) ? 4 : 0)
+    + (/fr-FR|en-GB|en-US/i.test(v.lang) ? 1 : 0);
+}
+
 function meilleureVoix(liste) {
   if (!liste.length) return null;
-  const graves = /paul|thierry|claude|guillaume|nicolas|henri|rémy|remy|male|homme/i;
-  return liste.find(v => graves.test(v.name))
-      || liste.find(v => /fr-FR/i.test(v.lang) && !/google/i.test(v.name))
-      || liste.find(v => /fr-FR/i.test(v.lang))
-      || liste[0];
+  return liste.slice().sort((a, b) => scoreVoix(b) - scoreVoix(a))[0];
+}
+
+function nomLisible(v) {
+  return v.name
+    .replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "")
+    .replace(/\s*Online\s*\(Natural\)\s*/i, " ").replace(/\s*-\s*(French|English).*$/i, "")
+    .trim();
 }
 
 function remplirVoix() {
   const sel = $("#narVoix");
   if (!sel) return;
-  const liste = voixDisponibles();
-  if (!liste.length) { sel.innerHTML = `<option>aucune voix française</option>`; return; }
+  const liste = voixDisponibles().sort((a, b) => scoreVoix(b) - scoreVoix(a));
+  if (!liste.length) {
+    sel.innerHTML = `<option>aucune voix ${N.langue === "en" ? "anglaise" : "française"}</option>`;
+    $("#narConseil").innerHTML =
+      `<span class="alerte">Aucune voix ${N.langue === "en" ? "anglaise" : "française"} dans ce navigateur.</span> ` +
+      `Ouvrez la page dans <b>Microsoft Edge</b> : il fournit gratuitement des voix neuronales dans les deux langues, ` +
+      `sans rien installer.`;
+    return;
+  }
   if (!N.voix || !liste.includes(N.voix)) N.voix = meilleureVoix(liste);
   sel.innerHTML = liste.map((v, i) =>
-    `<option value="${i}" ${v === N.voix ? "selected" : ""}>${v.name.replace(/Microsoft |Google /, "")}</option>`).join("");
-  sel.onchange = () => { N.voix = voixDisponibles()[+sel.value]; if (N.actif) relancerDepuisIndex(); };
+    `<option value="${i}" ${v === N.voix ? "selected" : ""}>${nomLisible(v)} · ${NIVEAU_LIBELLE[niveauVoix(v)]}</option>`).join("");
+  sel.onchange = () => {
+    N.voix = voixDisponibles().sort((a, b) => scoreVoix(b) - scoreVoix(a))[+sel.value];
+    majConseilVoix(N.voix);
+    if (N.actif) relancerDepuisIndex();
+  };
+  majConseilVoix(N.voix);
 }
 
-function narrationDuChapitre(ch) {
+/** Dit honnêtement à l'utilisateur s'il peut faire mieux, et comment. */
+function majConseilVoix(v) {
+  const el = $("#narConseil");
+  if (!el) return;
+  if (!v) { el.textContent = ""; return; }
+  const n = niveauVoix(v);
+  if (n === 3) { el.innerHTML = `<span class="ok">Voix neuronale — la meilleure qualité gratuite disponible.</span>`; return; }
+  const meilleuresAilleurs = /edg/i.test(navigator.userAgent)
+    ? "" : " Microsoft Edge propose des voix neuronales gratuites nettement supérieures (Henri, Denise en français).";
+  el.innerHTML = `Voix ${NIVEAU_LIBELLE[n]}.` + meilleuresAilleurs;
+}
+
+function narrationDuChapitre(ch, langue = N.langue) {
+  if (langue === "en") return NARRATIONS_EN[ch.id] || NARRATIONS[ch.id] || ch.recit || [];
   return NARRATIONS[ch.id] || ch.recit || [];
+}
+
+function changerLangue(langue) {
+  if (langue === N.langue) return;
+  N.langue = langue;
+  N.voix = null;                                  // on rechoisit la meilleure voix de la langue
+  $$(".nl-btn").forEach(b => b.classList.toggle("actif", b.dataset.langue === langue));
+  remplirVoix();
+  if (S.mode === "histoire") rendreContenu(true);
+  if (N.actif) demarrerNarration(S.chapitre);
 }
 
 function demarrerNarration(ch) {
@@ -1998,7 +2073,8 @@ function dire() {
   const texte = N.file[N.index];
   afficherSousTitre(texte);
   const u = new SpeechSynthesisUtterance(texte);
-  if (N.voix) { u.voice = N.voix; u.lang = N.voix.lang; } else u.lang = "fr-FR";
+  if (N.voix) { u.voice = N.voix; u.lang = N.voix.lang; }
+  else u.lang = N.langue === "en" ? "en-GB" : "fr-FR";
   u.rate = N.vitesse; u.pitch = N.gravite; u.volume = 1;
   const suivant = () => {
     if (gen !== N.gen || !N.actif || N.enPause) return;
@@ -2084,6 +2160,7 @@ function initNarration() {
     else { if (N.index >= N.file.length) N.index = 0; dire(); }
   };
   $("#narSuite").onchange = e => { N.enchainer = e.target.checked; };
+  $$(".nl-btn").forEach(b => b.onclick = () => changerLangue(b.dataset.langue));
   $("#narVitesse").oninput = e => { N.vitesse = +e.target.value; if (N.actif && !N.enPause) dire(); };
   $("#narGrave").oninput = e => { N.gravite = +e.target.value; if (N.actif && !N.enPause) dire(); };
   if ("speechSynthesis" in window) {
@@ -2133,9 +2210,17 @@ function ouvrirAide(section) {
 
     <h3>La narration</h3>
     <p>Le bouton <b>🎙 Narration</b> lit le chapitre en cours à voix haute, dans un registre de voix off
-    documentaire, avec les sous-titres au bas de l'écran. Vous pouvez choisir la voix, ralentir le débit et
-    baisser la hauteur — trois réglages qui changent beaucoup le ton. Cochez <b>enchaîner</b> pour dérouler
-    toute l'histoire, de l'Hadéen à 2100, sans rien toucher.</p>
+    documentaire, avec les sous-titres au bas de l'écran. Vous pouvez choisir la voix, la langue
+    (<b>français ou anglais</b>), ralentir le débit et baisser la hauteur. Cochez <b>enchaîner</b> pour
+    dérouler toute l'histoire, de l'Hadéen à 2100, sans rien toucher.</p>
+    <p><b>Pour la meilleure qualité de voix, ouvrez cette page dans Microsoft Edge.</b> Edge donne accès
+    gratuitement à des voix neuronales — Henri et Denise en français, une large gamme en anglais — nettement
+    supérieures aux voix intégrées à Windows, et sans rien installer. Chrome propose les voix « Google »,
+    de qualité intermédiaire. Le sélecteur indique le niveau de chaque voix : <i>neuronale</i>,
+    <i>réseau</i> ou <i>système</i>.</p>
+    <p>La narration anglaise existe pour une raison simple et assumée : les voix de synthèse anglaises sont
+    plus nombreuses et plus abouties que les françaises. Le contenu et les sources sont identiques —
+    c'est un choix de qualité sonore, pas de fond.</p>
     <p>Voyager dans le temps pendant la lecture change le chapitre narré : la voix suit le voyage.
     Tout se passe dans le navigateur, aucun texte n'est envoyé nulle part.</p>
 
