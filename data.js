@@ -1552,6 +1552,142 @@ export const NARRATIONS = {
 };
 
 /* ---------------------------------------------------------------------
+   9 ter. NARRATION DU PARCOURS GUIDÉ
+   Écrite à la main, dans les deux langues : c'est la porte d'entrée de
+   l'application, elle mérite mieux qu'un texte dérivé automatiquement.
+   ------------------------------------------------------------------- */
+export const NARRATION_PARCOURS = {
+  fr: {
+    parenthese: [
+      "Commençons par ce qui devrait nous étonner le plus.",
+      "Depuis onze mille sept cents ans, la température de la planète n'a pratiquement pas bougé. Un demi-degré de part et d'autre, tout au plus.",
+      "C'est dans ce calme, et seulement dans ce calme, que nous avons semé le premier grain, bâti la première ville, écrit le premier mot.",
+      "Chaque port, chaque zone agricole, chaque delta habité a été choisi en fonction de ce climat-là.",
+      "Toute notre civilisation tient dans une parenthèse de stabilité. Nous n'avons jamais rien connu d'autre.",
+    ],
+    echelle: [
+      "Pour comprendre ce que vaut un degré, il faut regarder en arrière.",
+      "Il y a vingt et un mille ans, la Terre était quatre à six degrés plus froide qu'aujourd'hui.",
+      "Trois kilomètres de glace couvraient le Canada et la Scandinavie. Le niveau des mers était cent vingt mètres plus bas. On passait à pied de la Belgique à l'Angleterre.",
+      "Voilà ce que valent quelques degrés de moyenne globale. Ce n'est jamais « un peu plus chaud ». C'est un autre monde.",
+      "Et la trajectoire actuelle nous emmène vers deux virgule six à trois degrés. Dans l'autre sens.",
+    ],
+    carbone: [
+      "D'où vient le carbone que nous rejetons ?",
+      "Au Carbonifère, il y a trois cents millions d'années, des forêts immenses enfouissent leur carbone dans les marécages. Il s'y transforme lentement en charbon.",
+      "Ce que nous appelons énergies fossiles, c'est cela : du carbone que la biosphère a mis des dizaines de millions d'années à retirer de l'atmosphère.",
+      "Nous le remettons en circulation en deux siècles. Quarante et un milliards de tonnes par an.",
+      "Ce n'est pas une pollution parmi d'autres. C'est un transfert géologique, effectué à une vitesse industrielle.",
+    ],
+    vitesse: [
+      "Voici le cœur du problème, et il tient en un mot : la vitesse.",
+      "Il y a cinquante-six millions d'années, une injection massive de carbone a réchauffé la planète de cinq à huit degrés et acidifié les océans. Les géologues en font un événement majeur.",
+      "Ce carbone a été injecté sur trois mille à vingt mille ans.",
+      "Nous reproduisons cette injection au moins dix fois plus vite.",
+      "La vie du Paléocène avait des millénaires pour se déplacer. Nous offrons à la nôtre quelques décennies.",
+      "Ce n'est pas la chaleur en elle-même qui pose problème. C'est le temps que nous laissons pour s'y adapter.",
+    ],
+    savoir: [
+      "Une idée reçue mérite d'être écartée tout de suite : ce n'est pas une découverte récente.",
+      "En dix-huit cent vingt-quatre, Joseph Fourier comprend que l'atmosphère retient la chaleur.",
+      "En dix-huit cent cinquante-six, Eunice Foote mesure qu'un air chargé en gaz carbonique chauffe davantage au soleil. Trois ans plus tard, John Tyndall le mesure précisément.",
+      "En dix-huit cent quatre-vingt-seize, Svante Arrhenius calcule à la main qu'un doublement du gaz carbonique réchaufferait la Terre de cinq à six degrés.",
+      "La science d'aujourd'hui répond trois degrés, entre deux et demi et quatre. Arrhenius était un peu haut. Il n'était pas loin.",
+      "Nous savons depuis cent trente ans. Le débat n'a jamais porté sur la physique.",
+    ],
+    constat: [
+      "Où en sommes-nous exactement ?",
+      "Le gaz carbonique atmosphérique n'a pas dépassé trois cents parties par million une seule fois en huit cent mille ans. Il est aujourd'hui à quatre cent vingt-cinq.",
+      "Deux mille vingt-quatre a été l'année la plus chaude jamais mesurée : un degré cinquante-cinq au-dessus de l'ère préindustrielle. Les dix années les plus chaudes sont les dix dernières.",
+      "Et pendant ce temps, l'océan encaisse. Quatre-vingt-onze pour cent de la chaleur en excès y est partie.",
+      "Ce que nous ressentons dans l'air n'est même pas trois pour cent de ce qui se passe réellement.",
+    ],
+    bifurcation: [
+      "À partir d'ici, plusieurs mondes sont possibles.",
+      "Le GIEC ne prédit pas l'avenir : il explore des trajectoires. Un virgule quatre degré si nous atteignons la neutralité carbone vers deux mille cinquante. Deux virgule sept en milieu de route. Quatre virgule quatre si nous continuons sur les fossiles.",
+      "Avec les politiques réellement mises en œuvre aujourd'hui, nous sommes autour de deux virgule six à trois degrés.",
+      "Et un demi-degré n'est jamais un détail. Les récifs coralliens tropicaux perdent soixante-dix à quatre-vingt-dix pour cent de leur surface à un degré et demi. Plus de quatre-vingt-dix-neuf pour cent à deux degrés.",
+      "L'écart entre ces mondes n'est pas une question de physique. C'est une question de décisions.",
+    ],
+    agir: [
+      "Terminons par ce qui dépend encore de nous, et c'est le point le plus important.",
+      "Le dernier rapport du GIEC a établi un résultat que peu de gens connaissent : le réchauffement s'arrête pratiquement dès que les émissions nettes de gaz carbonique atteignent zéro.",
+      "Il n'y a pas de décennies de hausse inévitable dans les tuyaux. Quand nous arrêtons, cela s'arrête.",
+      "Ce qui veut dire que chaque tonne compte, à n'importe quel moment. Il n'existe aucun seuil au-delà duquel agir deviendrait inutile.",
+      "Il existe seulement des seuils au-delà desquels certains dommages ne se réparent plus.",
+      "Alors, une dernière chose.",
+      "Ce n'est pas la planète qu'il faut sauver. Elle a survécu à une Terre entièrement gelée, aux trapps de Sibérie et à un astéroïde de dix kilomètres. Dans dix millions d'années, elle ira très bien.",
+      "Ce qu'il faut sauver, c'est la parenthèse. Ces onze mille ans de climat stable dont dépend absolument tout ce que nous avons bâti.",
+      "Cette parenthèse, nous sommes la première espèce à pouvoir la refermer. Et la seule à pouvoir décider de la garder ouverte.",
+    ],
+  },
+  en: {
+    parenthese: [
+      "Let us begin with what should astonish us most.",
+      "For eleven thousand seven hundred years, the temperature of the planet has barely moved. Half a degree either way, at most.",
+      "It is in this calm, and only in this calm, that we sowed the first grain, built the first city, wrote the first word.",
+      "Every port, every farming region, every inhabited delta was chosen to suit that climate.",
+      "Our entire civilisation fits inside a parenthesis of stability. We have never known anything else.",
+    ],
+    echelle: [
+      "To understand what a single degree is worth, you have to look backwards.",
+      "Twenty one thousand years ago, the Earth was four to six degrees colder than today.",
+      "Three kilometres of ice covered Canada and Scandinavia. Sea level was one hundred and twenty metres lower. You could walk from Belgium to England.",
+      "That is what a few degrees of global average are worth. It is never just a little warmer. It is another world.",
+      "And our current path is taking us toward two point six to three degrees. In the other direction.",
+    ],
+    carbone: [
+      "Where does the carbon we release come from?",
+      "In the Carboniferous, three hundred million years ago, immense forests buried their carbon in swamps. There, slowly, it became coal.",
+      "What we call fossil fuels is exactly that: carbon that the biosphere took tens of millions of years to remove from the atmosphere.",
+      "We are putting it back in two centuries. Forty one billion tonnes a year.",
+      "This is not one pollution among others. It is a geological transfer, carried out at industrial speed.",
+    ],
+    vitesse: [
+      "Here is the heart of the problem, and it comes down to one word: speed.",
+      "Fifty six million years ago, a massive injection of carbon warmed the planet by five to eight degrees and acidified the oceans. Geologists treat it as a major event.",
+      "That carbon was injected over three thousand to twenty thousand years.",
+      "We are reproducing that injection at least ten times faster.",
+      "The life of the Paleocene had millennia to move. We are giving ours a few decades.",
+      "It is not the heat itself that is the problem. It is the time we leave to adapt to it.",
+    ],
+    savoir: [
+      "One misconception deserves to be cleared away immediately: this is not a recent discovery.",
+      "In eighteen twenty four, Joseph Fourier understood that the atmosphere holds heat.",
+      "In eighteen fifty six, Eunice Foote measured that air rich in carbon dioxide warms more in sunlight. Three years later, John Tyndall measured it precisely.",
+      "In eighteen ninety six, Svante Arrhenius calculated by hand that doubling carbon dioxide would warm the Earth by five to six degrees.",
+      "Today's science answers three degrees, between two and a half and four. Arrhenius was a little high. He was not far off.",
+      "We have known for a hundred and thirty years. The debate was never about the physics.",
+    ],
+    constat: [
+      "So where exactly do we stand?",
+      "Atmospheric carbon dioxide did not exceed three hundred parts per million once in eight hundred thousand years. Today it stands at four hundred and twenty five.",
+      "Twenty twenty four was the warmest year ever measured: one point five five degrees above pre-industrial. The ten warmest years are the last ten.",
+      "And all this time, the ocean absorbs. Ninety one percent of the excess heat has gone into it.",
+      "What we feel in the air is not even three percent of what is actually happening.",
+    ],
+    bifurcation: [
+      "From here, several worlds are possible.",
+      "The IPCC does not predict the future: it explores pathways. One point four degrees if we reach carbon neutrality around twenty fifty. Two point seven on a middle road. Four point four if we continue with fossil fuels.",
+      "With the policies actually in place today, we are heading for around two point six to three degrees.",
+      "And half a degree is never a detail. Tropical coral reefs lose seventy to ninety percent of their cover at one and a half degrees. More than ninety nine percent at two degrees.",
+      "The gap between these worlds is not a question of physics. It is a question of decisions.",
+    ],
+    agir: [
+      "Let us end with what still depends on us, and this is the most important point of all.",
+      "The latest IPCC report established a result that few people know: warming stops, more or less, as soon as net carbon dioxide emissions reach zero.",
+      "There are no decades of unavoidable warming already in the pipeline. When we stop, it stops.",
+      "Which means every tonne counts, at any moment. There is no threshold beyond which acting becomes pointless.",
+      "There are only thresholds beyond which some damage can never be repaired.",
+      "So, one last thing.",
+      "It is not the planet that needs saving. It survived a fully frozen Earth, the Siberian Traps, and a ten kilometre asteroid. In ten million years, it will be perfectly fine.",
+      "What needs saving is the parenthesis. Those eleven thousand years of stable climate on which absolutely everything we have built depends.",
+      "That parenthesis: we are the first species able to close it. And the only one able to decide to keep it open.",
+    ],
+  },
+};
+
+/* ---------------------------------------------------------------------
    9 bis. NARRATION ANGLAISE
    Même récit, mêmes faits, mêmes sources. Proposée parce que les voix de
    synthèse anglaises sont nettement plus nombreuses et plus abouties que

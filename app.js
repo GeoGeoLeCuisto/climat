@@ -16,7 +16,7 @@ const {
   CO2_PHANEROZOIQUE, CYCLES_GLACIAIRES, KEELING, TEMPERATURE_MODERNE, EMISSIONS,
   SCENARIOS, SCENARIO_SOURCE, CONSEQUENCES, REGIONS,
   CADRE_PHYSIQUE, LEVIERS, LEVIERS_SOURCE, FOCUS_CIMENT, IDEES_RECUES, METHODE,
-  NARRATIONS, NARRATIONS_EN, PARCOURS, AGIR, SURFACES, EVENEMENTS,
+  NARRATIONS, NARRATIONS_EN, NARRATION_PARCOURS, PARCOURS, AGIR, SURFACES, EVENEMENTS,
 } = await import("./data.js" + V);
 
 /* =====================================================================
@@ -874,7 +874,7 @@ function allerA(p, force = false) {
     const actif = $(".chap.actif");
     if (actif) actif.scrollIntoView({ block: "nearest", behavior: "smooth" });
     if (S.mode === "histoire") rendreContenu();
-    if (change) narrationSuitChapitre(ch);
+    if (change) narrationSuit();
   }
 }
 
@@ -908,7 +908,9 @@ function initUI() {
   construireFrise();
 
   // modes
-  $$(".mode-btn").forEach(b => b.onclick = () => { S.mode = b.dataset.mode; majModes(); rendreContenu(); });
+  $$(".mode-btn").forEach(b => b.onclick = () => {
+    S.mode = b.dataset.mode; majModes(); rendreContenu(); narrationSuit();
+  });
 
   // frise interactive
   const piste = $("#frisePiste");
@@ -1018,12 +1020,17 @@ function rendreContenu(garderScroll = false) {
   const sc = el.scrollTop;
   if (S.mode === "parcours") el.innerHTML = vueParcours();
   else if (S.mode === "histoire") el.innerHTML = vueHistoire();
-  else if (S.mode === "consequences") el.innerHTML = vueConsequences();
-  else if (S.mode === "solutions") el.innerHTML = vueSolutions();
-  else if (S.mode === "idees") el.innerHTML = vueIdees();
-  else el.innerHTML = vueMethode();
+  else if (S.mode === "consequences") el.innerHTML = barreEcoute() + vueConsequences();
+  else if (S.mode === "solutions") el.innerHTML = barreEcoute() + vueSolutions();
+  else if (S.mode === "idees") el.innerHTML = barreEcoute() + vueIdees();
+  else el.innerHTML = barreEcoute() + vueMethode();
   el.scrollTop = garderScroll ? sc : 0;
   brancherContenu();
+}
+
+/** Bouton d'écoute générique, en tête des onglets sans narration dédiée. */
+function barreEcoute() {
+  return `<button class="btn-ecouter barre-ecoute" id="btnEcouter">🎙 Écouter cet onglet</button>`;
 }
 
 /* ---------- Parcours guidé ---------- */
@@ -1071,6 +1078,7 @@ function vueParcours() {
     <div class="c-accroche">${st.phrase}</div>
     ${points}
     ${finale}
+    <button class="btn-ecouter barre-ecoute" id="btnEcouter">🎙 Écouter cette étape</button>
     <div class="parcours-nav">
       <button class="pn-btn" id="pnPrec" ${S.station === 0 ? "disabled" : ""}>← Précédent</button>
       <button class="pn-btn primaire" id="pnSuiv" ${S.station === n - 1 ? "disabled" : ""}>
@@ -1085,6 +1093,7 @@ function allerStation(i) {
   const ch = CHAPITRES.find(c => c.id === st.chapitre);
   if (ch) allerA(anneeVersP(ch.annee), true);
   rendreContenu();
+  narrationSuit();
 }
 
 /* ---------- Histoire ---------- */
@@ -1414,7 +1423,7 @@ function brancherContenu() {
   const ecouter = $("#btnEcouter");
   if (ecouter) ecouter.onclick = () => {
     if (!N.actif) basculerNarration(true);
-    else demarrerNarration(S.chapitre);
+    else demarrerNarration();
   };
 
   // idées reçues
@@ -2047,6 +2056,119 @@ function narrationDuChapitre(ch, langue = N.langue) {
   return NARRATIONS[ch.id] || ch.recit || [];
 }
 
+/* --- Mise en bouche : le texte écrit n'est pas dit comme il est lu ---------
+   « 37,4 GtCO₂ » se prononce « trente-sept virgule quatre G-t-C-O-deux » si on
+   ne fait rien. On normalise les unités et les symboles avant de les envoyer
+   à la synthèse, et on retire les références bibliographiques : elles restent
+   à l'écran, mais les entendre épelées serait insupportable. */
+const REMPLACEMENTS = [
+  [/\s*\([^)]*(?:GIEC|IPCC|AR6|SPM|et al\.|Nature|Science|PNAS|ESSD)[^)]*\)/g, ""],
+  [/<[^>]+>/g, " "],
+  [/&nbsp;|&#160;/g, " "],
+  [/CO₂-eq/g, "équivalent CO2"], [/CO₂/g, "CO2"], [/N₂O/g, "protoxyde d'azote"],
+  [/CH₄/g, "méthane"], [/O₂/g, "oxygène"], [/¹³C|¹⁴C/g, "carbone"],
+  [/GtCO2\b/g, " milliards de tonnes de CO2"], [/\bGtCO₂\b/g, " milliards de tonnes de CO2"],
+  [/\bGt\b/g, " milliards de tonnes"], [/\bGt C\b/g, " milliards de tonnes de carbone"],
+  [/\bppm\b/g, " parties par million"],
+  [/\bGa\b/g, " milliards d'années"], [/\bMa\b/g, " millions d'années"], [/\bka\b/g, " milliers d'années"],
+  [/°C/g, " degrés"], [/W\/m²/g, " watts par mètre carré"], [/km³/g, " kilomètres cubes"],
+  [/km²/g, " kilomètres carrés"], [/\bkm\b/g, " kilomètres"], [/\bm\b(?=\s|$|\.)/g, " mètres"],
+  [/≈|~/g, " environ "], [/±/g, " plus ou moins "], [/→/g, " vers "], [/×/g, " fois "],
+  [/\s*%/g, " pour cent"], [/\$\/t/g, " dollars la tonne"], [/€/g, " euros"],
+  [/[«»""]/g, ""], [/ /g, " "], [/—/g, ", "], [/·/g, ". "],
+  [/\s{2,}/g, " "],
+];
+const REMPLACEMENTS_EN = [
+  [/\s*\([^)]*(?:IPCC|AR6|SPM|et al\.|Nature|Science|PNAS|ESSD)[^)]*\)/g, ""],
+  [/<[^>]+>/g, " "], [/&nbsp;/g, " "],
+  [/CO₂-eq/g, "CO2 equivalent"], [/CO₂/g, "CO2"], [/CH₄/g, "methane"], [/O₂/g, "oxygen"],
+  [/\bGtCO₂?\b/g, " billion tonnes of CO2"], [/\bGt\b/g, " billion tonnes"],
+  [/\bppm\b/g, " parts per million"],
+  [/\bGa\b/g, " billion years"], [/\bMa\b/g, " million years"], [/\bka\b/g, " thousand years"],
+  [/°C/g, " degrees"], [/≈|~/g, " about "], [/±/g, " plus or minus "], [/×/g, " times "],
+  [/\s*%/g, " percent"], [/[«»""]/g, ""], [/—/g, ", "], [/·/g, ". "], [/\s{2,}/g, " "],
+];
+
+function pourLaVoix(txt, langue = N.langue) {
+  let t = String(txt);
+  for (const [de, vers] of (langue === "en" ? REMPLACEMENTS_EN : REMPLACEMENTS)) t = t.replace(de, vers);
+  return t.trim();
+}
+
+/* --- Construction de la file selon l'onglet actif ------------------------
+   Les onglets Conséquences, Solutions et Idées reçues sont narrés à partir
+   du contenu réellement affiché : la voix dit exactement ce qui est écrit,
+   et rien ne peut se désynchroniser lors d'une mise à jour du contenu. */
+function narrationStation(i) {
+  const st = PARCOURS[i];
+  const dediee = (NARRATION_PARCOURS[N.langue] || {})[st.id];
+  if (dediee) return dediee;
+  return [st.titre, st.phrase, ...st.points.map(p => p.t)].map(t => pourLaVoix(t));
+}
+
+function narrationConsequences() {
+  const f = ["Conséquences observées et projetées du réchauffement."];
+  for (const c of CONSEQUENCES) {
+    f.push(`${c.titre}. ${c.chiffre} ${c.chiffreLabel}.`);
+    c.points.forEach(p => f.push(p.t));
+  }
+  f.push("Impacts par région.");
+  for (const r of REGIONS) { f.push(`${r.nom}.`); r.points.forEach(p => f.push(p)); }
+  return f.map(t => pourLaVoix(t, "fr"));
+}
+
+function narrationSolutions() {
+  const C = CADRE_PHYSIQUE;
+  const f = [
+    "Solutions. D'abord le cadre physique, ensuite les leviers.",
+    "Une seule règle gouverne tout le reste : le réchauffement est proportionnel au CO2 cumulé émis depuis l'ère préindustrielle. Environ zéro virgule quarante-cinq degré par mille milliards de tonnes.",
+    "Trois conséquences. Stabiliser la température exige d'atteindre le net zéro : réduire les émissions ne suffit pas, il faut les annuler. Chaque tonne compte, quelle que soit la date à laquelle elle est émise. Et il existe un budget carbone fini.",
+    "Budget carbone restant au premier janvier deux mille vingt-cinq.",
+  ];
+  C.budgets.forEach(b => f.push(`Pour ${b.cible} : ${b.gt} milliards de tonnes, soit ${b.annees}.`));
+  f.push("Les leviers, par ordre de potentiel.");
+  LEVIERS.slice().sort((a, b) => b.potentiel - a.potentiel).forEach(l =>
+    f.push(`${l.nom}. Potentiel de ${String(l.potentiel).replace(".", ",")} milliards de tonnes par an. ${l.note}`));
+  f.push(FOCUS_CIMENT.intro);
+  FOCUS_CIMENT.points.forEach(p => f.push(p.t));
+  return f.map(t => pourLaVoix(t, "fr"));
+}
+
+function narrationIdees() {
+  const f = ["Idées reçues, traitées sérieusement."];
+  IDEES_RECUES.forEach(i => { f.push(i.q.replace(/[«»]/g, "")); f.push(i.r); });
+  return f.map(t => pourLaVoix(t, "fr"));
+}
+
+function narrationMethode() {
+  const f = ["Méthode et sources.", ...METHODE.principes];
+  f.push("Ce que cette application ne fait pas.");
+  f.push("Elle ne reconstitue pas les continents au-delà de neuf cents millions d'années : aucun modèle publié ne remonte plus loin.");
+  f.push("Elle ne prédit pas l'avenir. Les scénarios sont des explorations conditionnelles.");
+  return f.map(t => pourLaVoix(t, "fr"));
+}
+
+/** Onglets narrés uniquement en français, faute de contenu traduit. */
+const ONGLETS_FR_SEULEMENT = ["consequences", "solutions", "idees", "methode"];
+
+function fileNarration() {
+  switch (S.mode) {
+    case "parcours": return narrationStation(S.station);
+    case "histoire": return narrationDuChapitre(S.chapitre);
+    case "consequences": return narrationConsequences();
+    case "solutions": return narrationSolutions();
+    case "idees": return narrationIdees();
+    default: return narrationMethode();
+  }
+}
+
+/** Clé de ce qui est narré : sert à détecter qu'il faut relancer la voix. */
+function cleNarration() {
+  if (S.mode === "parcours") return "parcours:" + S.station;
+  if (S.mode === "histoire") return "histoire:" + S.chapitre.id;
+  return S.mode;
+}
+
 function changerLangue(langue) {
   if (langue === N.langue) return;
   N.langue = langue;
@@ -2054,16 +2176,30 @@ function changerLangue(langue) {
   $$(".nl-btn").forEach(b => b.classList.toggle("actif", b.dataset.langue === langue));
   remplirVoix();
   if (S.mode === "histoire") rendreContenu(true);
-  if (N.actif) demarrerNarration(S.chapitre);
+  if (N.actif) demarrerNarration();
 }
 
-function demarrerNarration(ch) {
-  N.chapitre = ch;
-  N.file = narrationDuChapitre(ch);
+function demarrerNarration() {
+  N.cle = cleNarration();
+  N.chapitre = S.chapitre;
+  N.file = fileNarration();
   N.index = 0;
   N.enPause = false;
   $("#narPlay").textContent = "❚❚";
+  majAvertissementLangue();
   dire();
+}
+
+/** Prévient quand l'onglet en cours n'existe pas dans la langue choisie. */
+function majAvertissementLangue() {
+  const el = $("#narConseil");
+  if (!el) return;
+  if (N.langue === "en" && ONGLETS_FR_SEULEMENT.includes(S.mode)) {
+    el.innerHTML = `<span class="alerte">Cet onglet n'est narré qu'en français</span> — son contenu n'est pas encore traduit. ` +
+      `Le parcours guidé et les 17 chapitres, eux, existent dans les deux langues.`;
+  } else {
+    majConseilVoix(N.voix);
+  }
 }
 
 function dire() {
@@ -2093,19 +2229,28 @@ function relancerDepuisIndex() { if (N.actif) dire(); }
 function finChapitre() {
   if (!N.actif) return;
   if (N.enchainer) {
-    const i = CHAPITRES.indexOf(N.chapitre);
-    if (i < CHAPITRES.length - 1) {
+    // en parcours, on enchaîne les étapes ; en histoire, les chapitres
+    if (S.mode === "parcours" && S.station < PARCOURS.length - 1) {
       afficherSousTitre("…");
-      setTimeout(() => {
-        if (!N.actif) return;
-        const suivant = CHAPITRES[i + 1];
-        allerA(anneeVersP(suivant.annee), true);
-        demarrerNarration(suivant);
-      }, 2200);
+      setTimeout(() => { if (N.actif) { allerStation(S.station + 1); demarrerNarration(); } }, 2000);
       return;
     }
+    if (S.mode === "histoire") {
+      const i = CHAPITRES.indexOf(S.chapitre);
+      if (i < CHAPITRES.length - 1) {
+        afficherSousTitre("…");
+        setTimeout(() => {
+          if (!N.actif) return;
+          allerA(anneeVersP(CHAPITRES[i + 1].annee), true);
+          demarrerNarration();
+        }, 2200);
+        return;
+      }
+    }
   }
-  afficherSousTitre("Fin du chapitre. Choisissez-en un autre, ou activez « enchaîner ».");
+  afficherSousTitre(S.mode === "parcours"
+    ? "Fin de l'étape. Passez à la suivante, ou activez « enchaîner »."
+    : "Fin de la lecture. Choisissez un autre onglet ou chapitre.");
   $("#narPlay").textContent = "▶";
   N.enPause = true;
 }
@@ -2139,7 +2284,6 @@ function basculerNarration(actif) {
   $("#narration").classList.remove("hidden");
   btn.classList.add("actif");
   btn.textContent = "🎙 En cours";
-  if (S.mode !== "histoire") { S.mode = "histoire"; majModes(); rendreContenu(); }
   // Chrome interrompt les énoncés longs : on relance la file toutes les dix secondes
   clearInterval(N.veille);
   N.veille = setInterval(() => {
@@ -2147,7 +2291,7 @@ function basculerNarration(actif) {
       speechSynthesis.pause(); speechSynthesis.resume();
     }
   }, 9000);
-  demarrerNarration(S.chapitre);
+  demarrerNarration();
 }
 
 function initNarration() {
@@ -2169,9 +2313,9 @@ function initNarration() {
   }
 }
 
-/** Appelé à chaque changement de chapitre : la narration suit le voyage. */
-function narrationSuitChapitre(ch) {
-  if (N.actif && ch !== N.chapitre) demarrerNarration(ch);
+/** La narration suit ce qui est affiché : changement de chapitre, d'étape ou d'onglet. */
+function narrationSuit() {
+  if (N.actif && cleNarration() !== N.cle) demarrerNarration();
 }
 
 /* =====================================================================

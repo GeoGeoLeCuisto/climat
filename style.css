@@ -399,6 +399,7 @@ a:hover{ border-bottom-color:var(--accent); }
   background:rgba(79,195,247,.16); border:1px solid rgba(79,195,247,.34); color:#bfe6ff;
   font-size:12.5px; transition:.15s; }
 .btn-ecouter:hover{ background:rgba(79,195,247,.28); }
+.barre-ecoute{ margin-bottom:16px; }
 .narration-texte p{ font-family:var(--serif); font-size:13.6px; line-height:1.6;
   color:#c9dcef; margin-bottom:8px; }
 .narration-texte p:last-child{ margin-bottom:0; }
