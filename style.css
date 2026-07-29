@@ -54,13 +54,22 @@ a:hover{ border-bottom-color:var(--accent); }
   transition:opacity .6s ease;
 }
 #boot.out{ opacity:0; pointer-events:none; }
-.boot-inner{ text-align:center; width:min(440px,80vw); }
+.boot-inner{ text-align:center; width:min(440px,86vw); }
 .boot-title{
-  font-family:var(--serif); font-size:76px; letter-spacing:.22em;
+  font-family:var(--serif);
+  /* la taille suit la largeur de l'ecran : a 76px fixes, « CLIMAT » et son
+     interlettrage depassaient 390px et le T final etait coupe sur iPhone */
+  font-size:clamp(40px, 13.5vw, 76px);
+  letter-spacing:.22em;
+  /* l'interlettrage ajoute aussi un espace APRES la derniere lettre, ce qui
+     decale le texte centre vers la gauche : on le compense */
+  text-indent:.22em;
   background:linear-gradient(180deg,#fff,#7fb6e8); -webkit-background-clip:text;
   background-clip:text; color:transparent; margin-bottom:4px;
+  white-space:nowrap;
 }
-.boot-sub{ color:var(--texte-doux); letter-spacing:.14em; font-size:12px;
+.boot-sub{ color:var(--texte-doux); letter-spacing:.14em;
+  font-size:clamp(10px, 3vw, 12px); text-indent:.14em;
   text-transform:uppercase; margin-bottom:34px; }
 .boot-bar{ height:2px; background:rgba(120,160,220,.16); border-radius:2px; overflow:hidden; }
 .boot-bar-fill{ height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent-2));
