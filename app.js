@@ -17,7 +17,7 @@ const {
   SCENARIOS, SCENARIO_SOURCE, CONSEQUENCES, REGIONS,
   CADRE_PHYSIQUE, LEVIERS, LEVIERS_SOURCE, FOCUS_CIMENT, IDEES_RECUES, METHODE,
   NARRATIONS, NARRATIONS_EN, NARRATION_PARCOURS, PARCOURS, AGIR, SURFACES, EVENEMENTS,
-  CONFIG, courrielAuteur,
+  CONFIG,
 } = await import("./data.js" + V);
 
 /* =====================================================================
@@ -2648,7 +2648,7 @@ function ouvrirRetour() {
       <div class="retour-etat" id="retourEtat"></div>
       <p class="retour-vie-privee">
         ${sansService
-          ? "Ce bouton ouvrira votre logiciel de messagerie avec le texte pré-rempli : rien n'est transmis sans que vous validiez l'envoi."
+          ? "Le formulaire n'est pas configuré pour l'instant : le message ne pourra pas être transmis."
           : "Votre message est transmis directement à l'auteur. Aucun compte, aucun cookie, aucun suivi. Les coordonnées que vous laissez sont facultatives et ne servent qu'à vous répondre."}
       </p>
     </form>`);
@@ -2669,11 +2669,11 @@ async function envoyerRetour(contexte) {
   const etat = $("#retourEtat"), bouton = $("#retourEnvoyer");
   const cle = (CONFIG.retourCle || "").trim();
 
-  // sans service configuré : on ouvre le logiciel de courriel du visiteur
+  // sans service configuré, on ne peut rien envoyer — et on ne divulgue
+  // aucune adresse de repli : ce dépôt est public
   if (!cle) {
-    const corps = encodeURIComponent(`${message}\n\n— ${contact || "anonyme"}\n(${contexte})`);
-    location.href = `mailto:${courrielAuteur()}?subject=${encodeURIComponent("Retour sur CLIMAT")}&body=${corps}`;
-    etat.innerHTML = `<span class="ok">Votre logiciel de messagerie devrait s'ouvrir. Merci !</span>`;
+    etat.innerHTML = `<span class="alerte">Le formulaire n'est pas configuré pour l'instant.</span> ` +
+      `Réessayez plus tard, le message ne peut pas être transmis.`;
     return;
   }
 
@@ -2697,10 +2697,9 @@ async function envoyerRetour(contexte) {
     bouton.textContent = "Envoyé";
     tracer("retour-envoye", "Retour envoyé");
   } catch (err) {
-    bouton.disabled = false; bouton.textContent = "Envoyer";
-    const corps = encodeURIComponent(`${message}\n\n— ${contact || "anonyme"}\n(${contexte})`);
+    bouton.disabled = false; bouton.textContent = "Réessayer";
     etat.innerHTML = `<span class="alerte">L'envoi a échoué (${err.message}).</span> ` +
-      `<a href="mailto:${courrielAuteur()}?subject=Retour%20sur%20CLIMAT&body=${corps}">Envoyer par courriel à la place</a>`;
+      `Votre texte est conservé dans le formulaire : réessayez dans un instant.`;
   }
 }
 

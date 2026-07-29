@@ -45,15 +45,13 @@ export const CONFIG = {
   retourCle: "b72d1147-2a6a-47dd-bcf3-fc8a3782229f",
   retourType: "web3forms",              // "web3forms" ou "formspree"
 
-  /* Adresse de repli, utilisée uniquement si l'envoi échoue. Assemblée à
-     l'exécution plutôt qu'écrite en clair : cela n'arrête pas un aspirateur
-     d'adresses déterminé, mais évite la récolte automatique la plus grossière
-     dans un dépôt public. */
-  courrielParts: ["adresse-retiree", "gmail.com"],
+  /* Aucune adresse de courriel n'est stockée ici, volontairement. Ce dépôt est
+     public : toute adresse écrite dans le code, même découpée en morceaux, est
+     trouvable en une recherche et finit moissonnée par les robots à spam.
+     Web3Forms achemine les messages sans que l'adresse destinataire apparaisse
+     jamais côté navigateur. Si l'envoi échoue, on le dit au visiteur plutôt
+     que de basculer sur un lien mailto qui révélerait l'adresse. */
 };
-
-/** Adresse de repli, reconstituée à l'exécution. */
-export function courrielAuteur() { return CONFIG.courrielParts.join("@"); }
 
 /* ---------------------------------------------------------------------
    1. AXE DU TEMPS
