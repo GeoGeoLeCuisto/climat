@@ -67,6 +67,9 @@ function boot(pct, txt) { bootBar.style.width = pct + "%"; bootStatus.textConten
     $("#boot").classList.add("out");
     $("#app").classList.remove("hidden");
     redimensionner();
+    // la frise est construite pendant que l'app est masquée : ses largeurs
+    // valent alors zéro, il faut répartir les étiquettes une fois visible
+    disposerEtiquettesFrise();
     setTimeout(() => $("#boot").remove(), 700);
     animer();
   } catch (e) {
@@ -428,7 +431,7 @@ function redimensionner() {
   camera.updateProjectionMatrix();
   // les graphiques du panneau se redessinent à la nouvelle largeur
   clearTimeout(redimensionner._t);
-  redimensionner._t = setTimeout(() => rendreContenu(true), 220);
+  redimensionner._t = setTimeout(() => { rendreContenu(true); disposerEtiquettesFrise(); }, 220);
 }
 
 function latLonVersVec3(lat, lon, r = 1) {
@@ -1095,6 +1098,10 @@ function initUI() {
   piste.addEventListener("pointermove", e => { if (glisse) set(e); });
   piste.addEventListener("pointerup", () => { glisse = false; });
 
+  // la frise peut changer de largeur sans que la fenêtre bouge (panneaux,
+  // barre d'onglets qui passe à la ligne) : on suit sa taille réelle
+  new ResizeObserver(() => disposerEtiquettesFrise()).observe($("#frise"));
+
   $("#btnPlay").onclick = () => basculerLecture(!S.lecture);
   $("#btnGestes").onclick = () => basculerGestes(!S.gestes);
   initNarration();
@@ -1214,8 +1221,55 @@ function construireFrise() {
   $("#friseMarqueurs").innerHTML = evts.map(e => {
     const p = anneeVersP(e.a) * 100;
     return `<div class="fm" style="left:${p}%;background:${e.c};box-shadow:0 0 8px ${e.c}"></div>
-            <div class="fm-lab" style="left:${p}%">${e.l}</div>`;
+            <div class="fm-lab" style="left:${p}%;color:${e.c}">${e.l}</div>`;
   }).join("");
+  disposerEtiquettesFrise();
+}
+
+/* Sur une échelle logarithmique, des événements séparés de 10 millions
+   d'années — K-Pg à 66 Ma, PETM à 56 Ma — tombent à moins d'un pour cent
+   l'un de l'autre. Les étiquettes se chevauchaient. On les répartit sur deux
+   rangées, et on rentre celles qui débordent des bords. */
+function disposerEtiquettesFrise() {
+  const labs = $$("#friseMarqueurs .fm-lab");
+  if (!labs.length) return;
+  const piste = $("#frisePiste").getBoundingClientRect();
+  if (!piste.width) return;
+  // sur petit écran les étiquettes sont masquées : rien à répartir
+  if (getComputedStyle(labs[0]).display === "none") return;
+
+  labs.forEach(l => {
+    l.classList.remove("haut");
+    l.style.transform = "translateX(-50%)";
+    l.style.visibility = "";
+  });
+
+  const boites = labs.map(el => {
+    const r = el.getBoundingClientRect();
+    return { el, g: r.left - piste.left, d: r.right - piste.left };
+  }).sort((a, b) => a.g - b.g);
+
+  const finRangee = [-1e9, -1e9];
+  for (const b of boites) {
+    // on ramène dans la piste ce qui dépasse à gauche ou à droite
+    let dec = 0;
+    if (b.g < 2) dec = 2 - b.g;
+    else if (b.d > piste.width - 2) dec = piste.width - 2 - b.d;
+    const g = b.g + dec, d = b.d + dec;
+
+    let rangee = -1;
+    if (g > finRangee[0] + 8) rangee = 0;
+    else if (g > finRangee[1] + 8) rangee = 1;
+
+    if (rangee < 0) {
+      // aucune place : mieux vaut masquer que superposer deux textes illisibles
+      b.el.style.visibility = "hidden";
+      continue;
+    }
+    finRangee[rangee] = d;
+    if (rangee === 1) b.el.classList.add("haut");
+    if (dec) b.el.style.transform = `translateX(calc(-50% + ${Math.round(dec)}px))`;
+  }
 }
 
 /* =====================================================================

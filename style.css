@@ -216,7 +216,9 @@ a:hover{ border-bottom-color:var(--accent); }
 #friseMarqueurs{ position:absolute; inset:0; pointer-events:none; }
 .fm{ position:absolute; bottom:5px; width:2px; height:13px; border-radius:2px; opacity:.85; }
 .fm-lab{ position:absolute; bottom:20px; font-size:8.5px; color:var(--texte-doux);
-  transform:translateX(-50%); white-space:nowrap; opacity:.55; }
+  transform:translateX(-50%); white-space:nowrap; opacity:.7; }
+/* seconde rangee : evite le chevauchement des evenements trop rapproches */
+.fm-lab.haut{ bottom:31px; }
 #friseCurseur{ position:absolute; top:0; bottom:0; width:2px; background:#fff;
   box-shadow:0 0 12px rgba(255,255,255,.85); pointer-events:none; transition:left .12s linear; }
 .curseur-tete{ position:absolute; top:-5px; left:50%; transform:translateX(-50%);
