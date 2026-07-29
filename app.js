@@ -1118,8 +1118,22 @@ function initUI() {
   $("#modaleClose").onclick = () => $("#modale").classList.add("hidden");
   $("#modale").onclick = e => { if (e.target.id === "modale") $("#modale").classList.add("hidden"); };
 
+  /* Un raccourci ne doit jamais se déclencher pendant une saisie : sans ce
+     garde-fou, écrire « gestion » dans le formulaire d'avis allumait la
+     caméra, changeait d'onglet et lançait la narration. Idem quand une
+     fenêtre est ouverte : les touches agissaient sur l'app derrière elle. */
+  const saisieEnCours = e => {
+    const el = e.target;
+    if (!el) return false;
+    return el.isContentEditable ||
+      ["INPUT", "TEXTAREA", "SELECT", "OPTION"].includes(el.tagName);
+  };
+  const fenetreOuverte = () => !$("#modale").classList.contains("hidden");
+
   addEventListener("keydown", e => {
-    if (e.key === "Escape") $("#modale").classList.add("hidden");
+    // Échap reste toujours actif : c'est la sortie de secours
+    if (e.key === "Escape") { $("#modale").classList.add("hidden"); return; }
+    if (saisieEnCours(e) || fenetreOuverte()) return;
     // en parcours, les flèches enchaînent les étapes ; ailleurs, les chapitres
     if (e.key === "ArrowRight") {
       if (S.mode === "parcours") allerStation(S.station + 1);
