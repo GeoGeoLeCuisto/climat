@@ -16,9 +16,33 @@ export const META = {
   titre: "CLIMAT",
   sousTitre: "4,54 milliards d'années en un geste",
   version: "1.0",
-  majDonnees: "Données arrêtées aux publications disponibles début 2025",
+  majDonnees:
+    "Dernière vérification des données : 29 juillet 2026. Les séries de CO₂ (NOAA) et de température " +
+    "(NASA GISTEMP) ont été relevées directement dans leurs fichiers sources à cette date. Les rapports " +
+    "d'évaluation cités (GIEC AR6, Global Carbon Budget 2024, OMM) sont ceux disponibles à cette date",
   avertissementChamp:
     "Le champ de couleur reste un modèle zonal simplifié, pas une carte de données — voir « Méthode ».",
+};
+
+/* =====================================================================
+   RÉGLAGES À REMPLIR PAR L'AUTEUR
+   Deux services externes, tous deux gratuits et facultatifs. Tant que les
+   valeurs restent vides, l'application fonctionne exactement pareil :
+   aucune requête n'est émise, et le formulaire bascule sur un simple
+   courriel. Rien n'est activé à votre insu.
+   ===================================================================== */
+export const CONFIG = {
+  /* Mesure d'audience — GoatCounter (goatcounter.com), gratuit et sans cookie.
+     Créez un compte, puis mettez ici votre code : https://VOTRECODE.goatcounter.com
+     Laisser vide = aucune mesure, aucune requête. */
+  audience: "",
+
+  /* Formulaire de retour — Web3Forms (web3forms.com) ou Formspree.
+     Collez la clé d'accès Web3Forms, ou l'URL complète Formspree.
+     Laisser vide = le bouton ouvre le logiciel de courriel du visiteur. */
+  retourCle: "",
+  retourType: "web3forms",              // "web3forms" ou "formspree"
+  courriel: "adresse-retiree@example.invalid", // utilisé en repli, et par Web3Forms
 };
 
 /* ---------------------------------------------------------------------
@@ -323,7 +347,7 @@ export const CHAPITRES = [
     annee: 2025 - 9.0e7,
     plage: [2025 - 1.45e8, 2025 - 6.6e7],
     couleur: "#e0a63c",
-    co2: 1200, co2Plage: [700, 1700], tAnom: 8, tAnomPlage: [5, 12], mer: 200,
+    co2: 1200, co2Plage: [700, 1700], tAnom: 8, tAnomPlage: [5, 12], mer: 150,
     statut: "proxy",
     accroche: "Des forêts au pôle, des dinosaures en Alaska, et 200 mètres d'eau en plus.",
     recit: [
@@ -343,7 +367,7 @@ export const CHAPITRES = [
     faits: [
       { t: "CO₂ : ~700–1700 ppm selon les proxies", s: "Foster et al. 2017 ; Wang et al. 2014" },
       { t: "Pas de calotte permanente ; forêts polaires attestées", s: "Registre paléobotanique, Île d'Axel Heiberg" },
-      { t: "Niveau marin : +100 à +250 m par rapport à l'actuel", s: "Miller et al. 2005, Science ; Haq 2014" },
+      { t: "Niveau marin : +100 à +250 m par rapport à l'actuel. Les deux grandes reconstructions divergent nettement — Miller et al. plafonnent autour de +100 m, Haq monte jusqu'à +250 m. C'est l'une des incertitudes les plus larges de cette application.", s: "Miller et al. 2005, Science ; Haq 2014, Global and Planetary Change" },
     ],
     geo: "Ouverture de l'Atlantique. Inde en migration vers le nord. Mer intérieure occidentale en Amérique du Nord.",
     marqueurs: [{ nom: "Île d'Axel Heiberg", lat: 79.4, lon: -90.8, note: "Forêts fossiles arctiques" }],
@@ -442,7 +466,7 @@ export const CHAPITRES = [
       "Une étape mérite une attention particulière : le Pliocène moyen, il y a 3,3 à 3,0 millions " +
       "d'années. Le CO₂ y était compris entre 350 et 450 ppm — c'est-à-dire le niveau d'aujourd'hui. " +
       "La température globale était de 2,5 à 4 °C au-dessus du préindustriel et le niveau des mers " +
-      "de 10 à 25 mètres plus haut qu'aujourd'hui.",
+      "de 5 à 25 mètres plus haut qu'aujourd'hui.",
       "Ce n'est pas une prédiction pour 2100 : les calottes mettent des siècles à des millénaires à " +
       "répondre. C'est une indication de l'état d'équilibre vers lequel nous avons déjà engagé la planète.",
     ],
@@ -465,7 +489,7 @@ export const CHAPITRES = [
     annee: 2025 - 21000,
     plage: [2025 - 2.58e6, 2025 - 11700],
     couleur: "#85c1e9",
-    co2: 190, co2Plage: [180, 200], tAnom: -5, tAnomPlage: [-6.5, -3.5], mer: -120,
+    co2: 190, co2Plage: [180, 200], tAnom: -6, tAnomPlage: [-7, -5], mer: -120,
     statut: "carotte",
     accroche: "L'orbite déclenche, le CO₂ amplifie. Sans le second, les cycles glaciaires sont inexplicables.",
     recit: [
@@ -482,16 +506,16 @@ export const CHAPITRES = [
       "température. Le CO₂ est à la fois conséquence (l'océan froid en absorbe plus) et cause " +
       "(il amplifie le forçage orbital d'environ un facteur 2 à 3).",
       "Au Dernier Maximum Glaciaire, il y a 21 000 ans : la température globale est inférieure de " +
-      "4 à 6 °C au préindustriel, le niveau des mers est 120 mètres plus bas, une calotte de 3 km " +
-      "d'épaisseur couvre le Canada et la Scandinavie. Autrement dit : 5 °C d'écart, c'est la " +
+      "5 à 7 °C au préindustriel, le niveau des mers est 120 mètres plus bas, une calotte de 3 km " +
+      "d'épaisseur couvre le Canada et la Scandinavie. Autrement dit : 6 °C d'écart, c'est la " +
       "différence entre le monde d'aujourd'hui et un monde où l'on va à pied de France en Angleterre.",
-      "C'est l'argument le plus important à retenir : 5 °C de moyenne globale n'est pas « un peu plus " +
-      "chaud ». C'est un autre monde.",
+      "C'est l'argument le plus important à retenir : quelques degrés de moyenne globale ne sont pas " +
+      "« un peu plus chaud ». C'est un autre monde.",
     ],
     faits: [
       { t: "CO₂ sur 800 000 ans : 172–300 ppm — jamais au-dessus", s: "EPICA Dome C ; Lüthi et al. 2008, Nature" },
       { t: "Cycles orbitaux : 100 ka (excentricité), 41 ka (obliquité), 23/19 ka (précession)", s: "Milanković 1941 ; Hays, Imbrie & Shackleton 1976, Science" },
-      { t: "Dernier Maximum Glaciaire (21 ka) : −4 à −6 °C, mer −120 m", s: "Tierney et al. 2020, Nature ; GIEC AR6 WG1" },
+      { t: "Dernier Maximum Glaciaire (21 ka) : −5 à −7 °C, mer −120 m. Tierney et al. donnent −6,1 °C [−6,5 ; −5,7]", s: "Tierney et al. 2020, Nature ; GIEC AR6 WG1 §2.3.1" },
       { t: "Le CO₂ explique ~1/3 à 1/2 de l'amplitude glaciaire-interglaciaire", s: "Köhler et al. 2010 ; GIEC AR6 WG1 §2.2" },
     ],
     geo: "Calottes laurentidienne et fennoscandienne. Manche à sec, Doggerland émergé, Béringie continentale.",
@@ -621,22 +645,24 @@ export const CHAPITRES = [
     id: "moderne",
     ere: "1990 – 2025",
     titre: "Nous savons. Les émissions continuent de monter.",
-    annee: 2024,
+    annee: 2025,
     plage: [1990, 2025],
     couleur: "#e74c3c",
-    co2: 425, co2Plage: [354, 425], tAnom: 1.3, tAnomPlage: [1.1, 1.55], mer: 0,
+    co2: 426, co2Plage: [354, 427], tAnom: 1.35, tAnomPlage: [1.1, 1.55], mer: 0,
     statut: "mesure",
-    accroche: "35 ans de rapports, 30 COP, et un CO₂ qui passe de 354 à 425 ppm.",
+    accroche: "35 ans de rapports, 30 COP, et un CO₂ qui passe de 354 à 427 ppm.",
     recit: [
-      "Le CO₂ atmosphérique passe de 354,4 ppm en 1990 à 424,6 ppm en 2024. Les émissions fossiles " +
-      "mondiales passent de 22,7 à 37,4 milliards de tonnes de CO₂ par an. En ajoutant le changement " +
-      "d'usage des sols, le total 2024 approche 41,6 GtCO₂.",
+      "Le CO₂ mesuré à Mauna Loa passe de 354,5 ppm en 1990 à 427,4 ppm en 2025. La moyenne du globe, " +
+      "légèrement inférieure car l'observatoire est dans l'hémisphère nord, atteint 425,6 ppm. " +
+      "Les émissions fossiles mondiales passent de 22,7 à 37,4 milliards de tonnes de CO₂ par an. " +
+      "En ajoutant le changement d'usage des sols, le total 2024 approche 41,6 GtCO₂.",
       "La diplomatie climatique existe : convention de Rio en 1992, protocole de Kyoto en 1997, " +
       "accord de Paris en 2015, qui fixe l'objectif de contenir le réchauffement « nettement en " +
       "dessous de 2 °C » et de poursuivre les efforts pour 1,5 °C.",
       "Le résultat physique, lui, est sans ambiguïté. 2024 est la première année civile où la " +
-      "température globale dépasse 1,5 °C au-dessus de 1850-1900, à environ +1,55 °C. Les dix années " +
-      "les plus chaudes jamais mesurées sont les dix dernières. La moyenne 2015-2024 est à +1,24 °C.",
+      "température globale dépasse 1,5 °C au-dessus de 1850-1900, à environ +1,55 °C. 2025 suit " +
+      "immédiatement, autour de +1,45 °C — deuxième année la plus chaude jamais mesurée. Les dix " +
+      "années les plus chaudes de l'histoire des mesures sont les dix dernières.",
       "Il faut être précis sur un point souvent mal compris : une année à +1,55 °C ne signifie pas " +
       "que la limite de Paris est franchie. L'objectif porte sur une moyenne pluri-décennale. " +
       "Mais la tendance de fond, elle, est bien à environ +1,3 °C et progresse d'environ 0,2 °C " +
@@ -646,10 +672,10 @@ export const CHAPITRES = [
       "du déséquilibre énergétique réel.",
     ],
     faits: [
-      { t: "CO₂ : 354,4 ppm (1990) → 424,6 ppm (2024), moyennes annuelles", s: "NOAA GML, Mauna Loa" },
-      { t: "Émissions fossiles 2024 : 37,4 GtCO₂ (+4,2 land-use ≈ 41,6 total)", s: "Global Carbon Budget 2024, Friedlingstein et al., ESSD" },
+      { t: "CO₂ Mauna Loa : 354,45 ppm (1990) → 427,35 ppm (2025). Moyenne du globe 2025 : 425,64 ppm", s: "NOAA GML — valeurs relevées directement dans le fichier source, juillet 2026" },
+      { t: "Émissions fossiles 2024 : 37,4 GtCO₂ (+4,2 usage des sols ≈ 41,6 total)", s: "Global Carbon Budget 2024, Friedlingstein et al., ESSD" },
       { t: "2024 : +1,55 °C ± 0,13 vs 1850-1900 — année la plus chaude mesurée", s: "OMM, State of the Global Climate 2024" },
-      { t: "Réchauffement moyen 2015-2024 : +1,24 °C", s: "OMM 2025" },
+      { t: "2025 : deuxième année la plus chaude, autour de +1,45 °C. GISTEMP donne +1,19 °C sur sa base 1951-1980, soit ≈ +1,45 °C rapporté au préindustriel", s: "NASA GISTEMP v4 — valeur relevée directement, juillet 2026" },
       { t: "91 % de l'excès de chaleur est stocké dans l'océan", s: "GIEC AR6 WG1, chap. 7 ; von Schuckmann et al. 2020" },
       { t: "Tendance actuelle : ≈ +0,2 °C par décennie", s: "GIEC AR6 WG1 SPM ; Forster et al. 2024" },
     ],
@@ -728,7 +754,7 @@ export const CO2_PHANEROZOIQUE = {
     { ma: 45,  min: 700, max: 1400 },  { ma: 34,  min: 500, max: 900 },
     { ma: 20,  min: 300, max: 600 },   { ma: 10,  min: 250, max: 450 },
     { ma: 3,   min: 350, max: 450 },   { ma: 1,   min: 180, max: 300 },
-    { ma: 0,   min: 424, max: 424 },
+    { ma: 0,   min: 427, max: 427 },
   ],
 };
 
@@ -753,7 +779,7 @@ export const CYCLES_GLACIAIRES = {
     { ka: 70, co2: 210 }, { ka: 40, co2: 200 },
     { ka: 21, co2: 182, label: "Dernier Maximum Glaciaire" },
     { ka: 11.7, co2: 265, label: "début Holocène" }, { ka: 1, co2: 280 },
-    { ka: 0.275, co2: 277, label: "1750" }, { ka: 0.001, co2: 425, label: "2024 — hors échelle historique" },
+    { ka: 0.275, co2: 277, label: "1750" }, { ka: 0.001, co2: 427, label: "2025 — hors échelle historique" },
   ],
 };
 
@@ -768,13 +794,21 @@ export const KEELING = {
     { an: 1750, ppm: 277 }, { an: 1800, ppm: 282 }, { an: 1850, ppm: 285 },
     { an: 1900, ppm: 296 }, { an: 1930, ppm: 306 }, { an: 1950, ppm: 311 },
   ],
+  // valeurs verifiees directement contre le fichier source de la NOAA
+  // (gml.noaa.gov/webdata/ccgg/trends/co2/co2_annmean_mlo.txt)
   mesure: [
     { an: 1959, ppm: 315.98 }, { an: 1965, ppm: 320.04 }, { an: 1970, ppm: 325.68 },
     { an: 1975, ppm: 331.13 }, { an: 1980, ppm: 338.80 }, { an: 1985, ppm: 346.12 },
-    { an: 1990, ppm: 354.39 }, { an: 1995, ppm: 360.82 }, { an: 2000, ppm: 369.55 },
-    { an: 2005, ppm: 379.80 }, { an: 2010, ppm: 389.90 }, { an: 2015, ppm: 400.83 },
-    { an: 2018, ppm: 408.72 }, { an: 2020, ppm: 414.24 }, { an: 2022, ppm: 418.56 },
-    { an: 2023, ppm: 421.08 }, { an: 2024, ppm: 424.61 },
+    { an: 1990, ppm: 354.45 }, { an: 1995, ppm: 360.82 }, { an: 2000, ppm: 369.55 },
+    { an: 2005, ppm: 379.80 }, { an: 2010, ppm: 389.90 }, { an: 2015, ppm: 401.01 },
+    { an: 2018, ppm: 408.72 }, { an: 2020, ppm: 414.21 }, { an: 2022, ppm: 418.56 },
+    { an: 2023, ppm: 421.08 }, { an: 2024, ppm: 424.61 }, { an: 2025, ppm: 427.35 },
+  ],
+  // Mauna Loa n'est pas la moyenne du globe : l'observatoire est dans
+  // l'hemisphere nord, ou le CO2 est legerement plus eleve. La distinction
+  // vaut environ 2 ppm et merite d'etre dite plutot que confondue.
+  global: [
+    { an: 2023, ppm: 419.35 }, { an: 2024, ppm: 422.79 }, { an: 2025, ppm: 425.64 },
   ],
 };
 
@@ -794,7 +828,7 @@ export const TEMPERATURE_MODERNE = {
   ],
   annees: [
     { an: 1998, t: 0.75 }, { an: 2016, t: 1.29 }, { an: 2020, t: 1.27 },
-    { an: 2023, t: 1.45 }, { an: 2024, t: 1.55 },
+    { an: 2023, t: 1.45 }, { an: 2024, t: 1.55 }, { an: 2025, t: 1.45 },
   ],
   reperes: [
     { t: 1.5, label: "Objectif Paris — 1,5 °C" },
@@ -850,7 +884,7 @@ export const CONSEQUENCES = [
   },
   {
     id: "mer", titre: "Niveau des mers", icone: "🌊",
-    chiffre: "+21 cm", chiffreLabel: "depuis 1900",
+    chiffre: "≈ 20 cm", chiffreLabel: "entre 1901 et 2018",
     points: [
       { t: "Le niveau moyen des mers a monté d'environ 0,20 m entre 1901 et 2018. Le rythme s'accélère : 1,3 mm/an entre 1901 et 1971, 1,9 mm/an entre 1971 et 2006, 3,7 mm/an entre 2006 et 2018.", s: "GIEC AR6 WG1, SPM A.1.7" },
       { t: "Deux causes : la dilatation thermique de l'eau (l'océan se réchauffe et prend du volume) et la fonte des glaciers et calottes. Les deux contribuent aujourd'hui à parts comparables.", s: "GIEC AR6 WG1, chap. 9" },
@@ -893,7 +927,7 @@ export const CONSEQUENCES = [
     points: [
       { t: "Entre 3,3 et 3,6 milliards de personnes vivent dans des contextes très vulnérables au changement climatique. La mortalité liée aux inondations, sécheresses et tempêtes y a été 15 fois plus élevée que dans les régions à faible vulnérabilité sur 2010-2020.", s: "GIEC AR6 WG2, SPM B.2.4" },
       { t: "Les rendements agricoles sont déjà affectés dans plusieurs régions ; la croissance de la productivité agricole mondiale a été réduite d'environ 21 % depuis 1961 par rapport à ce qu'elle aurait été sans changement climatique.", s: "Ortiz-Bobea et al. 2021, Nature Climate Change" },
-      { t: "L'inégalité est structurelle : les 10 % les plus émetteurs de la planète sont responsables d'environ 48 % des émissions liées à la consommation ; les 50 % les moins émetteurs, d'environ 12 %.", s: "GIEC AR6 WG3, SPM B.3.4 ; Chancel 2022, Nature Sustainability" },
+      { t: "L'inégalité est structurelle, mais les estimations diffèrent selon la méthode. Le GIEC retient que les 10 % de ménages les plus émetteurs contribuent à 34-45 % des émissions liées à la consommation, et les 50 % les moins émetteurs à 13-15 %. Les travaux de Chancel, sur une base patrimoniale, donnent une fourchette plus large : environ 48 % contre 12 %.", s: "GIEC AR6 WG3, SPM B.3.4 (34-45 % / 13-15 %) ; Chancel 2022, Nature Sustainability (48 % / 12 %)" },
       { t: "Le coût de l'inaction dépasse largement celui de l'action dans toutes les évaluations économiques récentes, même en tenant compte des incertitudes sur le taux d'actualisation.", s: "GIEC AR6 WG3, chap. 3 ; Stern 2006 et révisions ultérieures" },
     ],
   },
@@ -909,8 +943,8 @@ export const REGIONS = [
     ] },
   { id: "europe", nom: "Europe de l'Ouest", lat: 48, lon: 5, delta: "≈ 2× la moyenne mondiale",
     points: [
-      "Continent le plus rapidement réchauffé : environ +2,3 °C depuis l'ère préindustrielle (Copernicus, 2024).",
-      "Belgique : environ +2 °C depuis la fin du XIX siècle selon les séries d'Uccle (IRM).",
+      "Continent le plus rapidement réchauffé : environ deux fois la moyenne mondiale depuis les années 1980 (Copernicus, European State of the Climate).",
+      "Belgique : plus de 2 °C de réchauffement depuis la fin du XIX siècle selon la série d'Uccle, la plus longue du pays (IRM). L'ordre de grandeur est solide ; la valeur exacte dépend de la période de référence retenue.",
       "Vagues de chaleur : celle de 2003 a causé environ 70 000 décès en excès en Europe (Robine et al. 2008).",
       "Enjeu énergétique direct : baisse de l'hydraulique et du nucléaire en période de canicule et d'étiage, pointes de demande de climatisation.",
     ] },
@@ -1277,7 +1311,7 @@ export const PARCOURS = [
     id: "echelle", chapitre: "quaternaire",
     numero: "L'échelle",
     titre: "Cinq degrés, ce n'est pas « un peu plus chaud ». C'est un autre monde.",
-    phrase: "Il y a 21 000 ans, la Terre était 4 à 6 °C plus froide qu'aujourd'hui. " +
+    phrase: "Il y a 21 000 ans, la Terre était 5 à 7 °C plus froide qu'aujourd'hui. " +
       "Trois kilomètres de glace couvraient le Canada et la Scandinavie. Le niveau des mers " +
       "était 120 mètres plus bas. On passait à pied de la Belgique à l'Angleterre.",
     points: [
@@ -1324,12 +1358,12 @@ export const PARCOURS = [
   {
     id: "constat", chapitre: "moderne",
     numero: "Où nous en sommes",
-    titre: "425 ppm, +1,55 °C, et 91 % de la chaleur cachée dans l'océan",
+    titre: "427 ppm, +1,55 °C, et 91 % de la chaleur cachée dans l'océan",
     phrase: "Le CO₂ atmosphérique n'a pas dépassé 300 ppm une seule fois en 800 000 ans. " +
-      "Il est aujourd'hui à 425. 2024 a été l'année la plus chaude jamais mesurée.",
+      "Il est aujourd'hui à 427. 2024 a été l'année la plus chaude jamais mesurée, 2025 la deuxième.",
     points: [
-      { t: "CO₂ : 424,6 ppm en moyenne annuelle 2024. Plafond des 800 000 dernières années : 300 ppm.", s: "NOAA GML ; EPICA Dome C, Lüthi et al. 2008" },
-      { t: "2024 : +1,55 °C au-dessus de 1850-1900. Les dix années les plus chaudes mesurées sont les dix dernières.", s: "OMM, State of the Global Climate 2024" },
+      { t: "CO₂ : 427,35 ppm en moyenne annuelle 2025 à Mauna Loa, 425,64 ppm en moyenne du globe. Plafond des 800 000 dernières années : 300 ppm.", s: "NOAA GML — valeurs relevées directement dans le fichier source" },
+      { t: "2024 : +1,55 °C au-dessus de 1850-1900 ; 2025 : environ +1,45 °C. Les dix années les plus chaudes mesurées sont les dix dernières.", s: "OMM 2024 ; NASA GISTEMP v4" },
       { t: "91 % de l'excès de chaleur est parti dans l'océan. Ce que nous ressentons dans l'air est une petite partie du déséquilibre réel.", s: "GIEC AR6 WG1 chap. 7 ; von Schuckmann et al. 2020" },
     ],
   },
@@ -1386,10 +1420,10 @@ export const AGIR = {
     { t: "Les gens autour de vous", d: "Les normes sociales sont un moteur documenté de diffusion : les comportements et les équipements se propagent par imitation dans les réseaux proches, bien plus que par l'information seule.", s: "Creutzig et al. 2022, Nature Climate Change ; GIEC AR6 WG3 chap. 5" },
   ],
   avertissement:
-    "Un mot sur les proportions. Les 10 % les plus émetteurs de la planète sont responsables d'environ 48 % " +
-    "des émissions liées à la consommation ; les 50 % les moins émetteurs, d'environ 12 %. La responsabilité " +
-    "n'est pas répartie également, et les marges de manœuvre non plus.",
-  avertissementSource: "GIEC AR6 WG3, SPM B.3.4 ; Chancel 2022, Nature Sustainability",
+    "Un mot sur les proportions. Selon le GIEC, les 10 % de ménages les plus émetteurs contribuent à " +
+    "34-45 % des émissions liées à la consommation, contre 13-15 % pour les 50 % les moins émetteurs. " +
+    "La responsabilité n'est pas répartie également, et les marges de manœuvre non plus.",
+  avertissementSource: "GIEC AR6 WG3, SPM B.3.4. Des travaux ultérieurs (Chancel 2022, Nature Sustainability) donnent une fourchette plus large encore : 48 % contre 12 %.",
 };
 
 /* ---------------------------------------------------------------------
@@ -1499,7 +1533,7 @@ export const NARRATIONS = {
     "Il y a trente-quatre millions d'années, un seuil est franchi. La glace prend sur l'Antarctique, et elle ne repartira plus.",
     "Puis, il y a environ trois millions d'années, une époque mérite qu'on s'y arrête.",
     "Le gaz carbonique y était compris entre trois cent cinquante et quatre cent cinquante parties par million. C'est-à-dire exactement là où nous en sommes.",
-    "La température était deux et demi à quatre degrés au-dessus de l'ère préindustrielle. Et le niveau des mers, dix à vingt-cinq mètres plus haut qu'aujourd'hui.",
+    "La température était deux et demi à quatre degrés au-dessus de l'ère préindustrielle. Et le niveau des mers, cinq à vingt-cinq mètres plus haut qu'aujourd'hui.",
     "Ce n'est pas une prévision pour ce siècle. Les calottes sont lentes.",
     "C'est l'état d'équilibre vers lequel nous avons déjà orienté la planète.",
   ],
@@ -1544,7 +1578,7 @@ export const NARRATIONS = {
     "Quarante-cinq ans plus tard, ce chiffre n'a pas bougé.",
   ],
   moderne: [
-    "Trois cent cinquante-quatre parties par million en mille neuf cent quatre-vingt-dix. Quatre cent vingt-cinq aujourd'hui.",
+    "Trois cent cinquante-quatre parties par million en mille neuf cent quatre-vingt-dix. Quatre cent vingt-sept aujourd'hui.",
     "Entre les deux. Rio. Kyoto. Paris. Trente conférences mondiales. Des milliers de pages.",
     "Et trente-sept milliards de tonnes de gaz carbonique rejetées chaque année par les énergies fossiles. Plus que jamais.",
     "Deux mille vingt-quatre a été l'année la plus chaude jamais mesurée. Un degré cinquante-cinq au-dessus de l'ère préindustrielle.",
@@ -1590,7 +1624,7 @@ export const NARRATION_PARCOURS = {
     ],
     echelle: [
       "Pour comprendre ce que vaut un degré, il faut regarder en arrière.",
-      "Il y a vingt et un mille ans, la Terre était quatre à six degrés plus froide qu'aujourd'hui.",
+      "Il y a vingt et un mille ans, la Terre était cinq à sept degrés plus froide qu'aujourd'hui.",
       "Trois kilomètres de glace couvraient le Canada et la Scandinavie. Le niveau des mers était cent vingt mètres plus bas. On passait à pied de la Belgique à l'Angleterre.",
       "Voilà ce que valent quelques degrés de moyenne globale. Ce n'est jamais « un peu plus chaud ». C'est un autre monde.",
       "Et la trajectoire actuelle nous emmène vers deux virgule six à trois degrés. Dans l'autre sens.",
@@ -1620,7 +1654,7 @@ export const NARRATION_PARCOURS = {
     ],
     constat: [
       "Où en sommes-nous exactement ?",
-      "Le gaz carbonique atmosphérique n'a pas dépassé trois cents parties par million une seule fois en huit cent mille ans. Il est aujourd'hui à quatre cent vingt-cinq.",
+      "Le gaz carbonique atmosphérique n'a pas dépassé trois cents parties par million une seule fois en huit cent mille ans. Il est aujourd'hui à quatre cent vingt-sept.",
       "Deux mille vingt-quatre a été l'année la plus chaude jamais mesurée : un degré cinquante-cinq au-dessus de l'ère préindustrielle. Les dix années les plus chaudes sont les dix dernières.",
       "Et pendant ce temps, l'océan encaisse. Quatre-vingt-onze pour cent de la chaleur en excès y est partie.",
       "Ce que nous ressentons dans l'air n'est même pas trois pour cent de ce qui se passe réellement.",
@@ -1663,7 +1697,7 @@ export const NARRATION_PARCOURS = {
     ],
     echelle: [
       "To understand what a single degree is worth, you have to look backwards.",
-      "Twenty one thousand years ago, the Earth was four to six degrees colder than today.",
+      "Twenty one thousand years ago, the Earth was five to seven degrees colder than today.",
       "Three kilometres of ice covered Canada and Scandinavia. Sea level was one hundred and twenty metres lower. You could walk from Belgium to England.",
       "That is what a few degrees of global average are worth. It is never just a little warmer. It is another world.",
       "And our current path is taking us toward two point six to three degrees. In the other direction.",
@@ -1693,7 +1727,7 @@ export const NARRATION_PARCOURS = {
     ],
     constat: [
       "So where exactly do we stand?",
-      "Atmospheric carbon dioxide did not exceed three hundred parts per million once in eight hundred thousand years. Today it stands at four hundred and twenty five.",
+      "Atmospheric carbon dioxide did not exceed three hundred parts per million once in eight hundred thousand years. Today it stands at four hundred and twenty seven.",
       "Twenty twenty four was the warmest year ever measured: one point five five degrees above pre-industrial. The ten warmest years are the last ten.",
       "And all this time, the ocean absorbs. Ninety one percent of the excess heat has gone into it.",
       "What we feel in the air is not even three percent of what is actually happening.",
@@ -1826,7 +1860,7 @@ export const NARRATIONS_EN = {
     "Thirty four million years ago, a threshold is crossed. Ice takes hold on Antarctica, and it will not leave again.",
     "Then, around three million years ago, one period deserves our attention.",
     "Carbon dioxide there stood between three hundred and fifty and four hundred and fifty parts per million. Which is to say, exactly where we are now.",
-    "Temperature was two and a half to four degrees above pre-industrial. And sea level, ten to twenty five metres higher than today.",
+    "Temperature was two and a half to four degrees above pre-industrial. And sea level, five to twenty five metres higher than today.",
     "This is not a forecast for this century. Ice sheets are slow.",
     "It is the equilibrium state toward which we have already steered the planet.",
   ],

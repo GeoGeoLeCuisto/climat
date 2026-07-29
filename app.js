@@ -16,7 +16,7 @@ const {
   CO2_PHANEROZOIQUE, CYCLES_GLACIAIRES, KEELING, TEMPERATURE_MODERNE, EMISSIONS,
   SCENARIOS, SCENARIO_SOURCE, CONSEQUENCES, REGIONS,
   CADRE_PHYSIQUE, LEVIERS, LEVIERS_SOURCE, FOCUS_CIMENT, IDEES_RECUES, METHODE,
-  NARRATIONS, NARRATIONS_EN, NARRATION_PARCOURS, PARCOURS, AGIR, SURFACES, EVENEMENTS,
+  NARRATIONS, NARRATIONS_EN, NARRATION_PARCOURS, PARCOURS, AGIR, SURFACES, EVENEMENTS, CONFIG,
 } = await import("./data.js" + V);
 
 /* =====================================================================
@@ -59,6 +59,7 @@ function boot(pct, txt) { bootBar.style.width = pct + "%"; bootStatus.textConten
     boot(72, "Préparation de l'interface…");
     initUI();
     boot(90, "Mise en place de la chronologie…");
+    initAudience();
     allerStation(0);
     boot(100, "Prêt");
     await new Promise(r => setTimeout(r, 380));
@@ -1017,6 +1018,7 @@ function initUI() {
   $("#btnGestes").onclick = () => basculerGestes(!S.gestes);
   initNarration();
   $("#btnAide").onclick = ouvrirAide;
+  $("#btnRetour").onclick = ouvrirRetour;
   $("#evStop").onclick = arreterEvenement;
   $("#feuillePoignee").onclick = basculerFeuille;
 
@@ -1148,6 +1150,7 @@ function rendreContenu(garderScroll = false) {
   else el.innerHTML = barreEcoute() + vueMethode();
   el.scrollTop = garderScroll ? sc : 0;
   brancherContenu();
+  tracerVue();
 }
 
 /** Bouton d'écoute générique, en tête des onglets sans narration dédiée. */
@@ -1703,7 +1706,7 @@ function grapheCO2Phanerozoique(cv) {
   x.strokeStyle = "#fff"; x.setLineDash([3, 3]); x.beginPath();
   x.moveTo(m.l, Y(424)); x.lineTo(w - m.r, Y(424)); x.stroke(); x.setLineDash([]);
   x.fillStyle = "#fff"; x.textAlign = "left"; x.textBaseline = "bottom";
-  x.fillText("425 ppm (2024)", m.l + 3, Y(424) - 2);
+  x.fillText("427 ppm (2025)", m.l + 3, Y(424) - 2);
 }
 
 function grapheCycles(cv) {
@@ -1735,7 +1738,7 @@ function grapheCycles(cv) {
   x.strokeStyle = "#e74c3c"; x.lineWidth = 2; x.beginPath();
   x.moveTo(X(0), Y(300)); x.lineTo(X(0), m.t); x.stroke();
   x.fillStyle = "#e74c3c"; x.textAlign = "right"; x.textBaseline = "top";
-  x.fillText("425 ppm →", X(0) - 3, m.t);
+  x.fillText("427 ppm →", X(0) - 3, m.t);
   x.fillStyle = "#61748f"; x.textAlign = "left"; x.textBaseline = "top";
   x.fillText("Plafond des 800 000 dernières années : 300 ppm", m.l + 4, m.t + 1);
 }
@@ -1763,7 +1766,7 @@ function grapheKeeling(cv) {
   x.textAlign = "left"; x.textBaseline = "bottom";
   x.fillText("carottes de glace", m.l + 3, Y(272));
   x.fillStyle = "#e74c3c"; x.textAlign = "right";
-  x.fillText("Mauna Loa (mesure) 424,6 ppm", w - m.r - 2, Y(424) - 5);
+  x.fillText("Mauna Loa (mesure) 427,4 ppm", w - m.r - 2, Y(424) - 5);
 
   // plafond holocène
   x.strokeStyle = "rgba(255,255,255,.28)"; x.setLineDash([2, 3]); x.beginPath();
@@ -2444,7 +2447,117 @@ function narrationSuit() {
 }
 
 /* =====================================================================
-   12. AIDE
+   12. MESURE D'AUDIENCE ET RETOURS DES VISITEURS
+   Deux services optionnels, désactivés tant que CONFIG n'est pas rempli.
+   Le choix de GoatCounter n'est pas anodin : pas de cookie, pas
+   d'identifiant persistant, pas de données personnelles collectées. C'est
+   ce qui permet de mesurer l'audience sans bandeau de consentement.
+   ===================================================================== */
+let audienceActive = false;
+
+function initAudience() {
+  const code = (CONFIG.audience || "").trim();
+  if (!code) return;
+  const s = document.createElement("script");
+  s.async = true;
+  s.dataset.goatcounter = code.replace(/\/$/, "") + "/count";
+  s.src = "//gc.zgo.at/count.js";
+  s.onload = () => { audienceActive = true; };
+  document.head.appendChild(s);
+}
+
+/** Enregistre une étape franchie. Sert à voir où les visiteurs décrochent. */
+function tracer(chemin, titre) {
+  if (!audienceActive || !window.goatcounter || !window.goatcounter.count) return;
+  window.goatcounter.count({ path: chemin, title: titre, event: true });
+}
+
+let dernierTrace = "";
+function tracerVue() {
+  const cle = cleNarration();
+  if (cle === dernierTrace) return;
+  dernierTrace = cle;
+  if (S.mode === "parcours") tracer("parcours-etape-" + (S.station + 1), "Parcours : " + PARCOURS[S.station].numero);
+  else if (S.mode === "histoire") tracer("chapitre-" + S.chapitre.id, "Chapitre : " + S.chapitre.titre);
+  else tracer("onglet-" + S.mode, "Onglet : " + S.mode);
+}
+
+/* ---------- Formulaire de retour ---------- */
+function ouvrirRetour() {
+  const sansService = !(CONFIG.retourCle || "").trim();
+  ouvrirModale(`
+    <h2>Votre avis m'intéresse</h2>
+    <p>Cette application est en construction. Ce qui est confus, faux, trop long ou manquant :
+    dites-le, c'est exactement ce qui la fera progresser.</p>
+    <form id="formRetour" class="retour-form">
+      <label class="retour-lab">Votre message</label>
+      <textarea id="retourMessage" rows="6" required
+        placeholder="Ce que vous avez compris, ce qui vous a perdu, ce qui manque…"></textarea>
+      <label class="retour-lab">Votre nom ou votre courriel <span>facultatif, seulement si vous souhaitez une réponse</span></label>
+      <input id="retourContact" type="text" placeholder="facultatif" autocomplete="off">
+      <div class="retour-ctx" id="retourCtx"></div>
+      <button type="submit" class="retour-envoyer" id="retourEnvoyer">Envoyer</button>
+      <div class="retour-etat" id="retourEtat"></div>
+      <p class="retour-vie-privee">
+        ${sansService
+          ? "Ce bouton ouvrira votre logiciel de messagerie avec le texte pré-rempli : rien n'est transmis sans que vous validiez l'envoi."
+          : "Votre message est transmis directement à l'auteur. Aucun compte, aucun cookie, aucun suivi. Les coordonnées que vous laissez sont facultatives et ne servent qu'à vous répondre."}
+      </p>
+    </form>`);
+
+  // on joint le contexte de lecture : savoir d'où vient la remarque aide beaucoup
+  const ctx = S.mode === "parcours" ? `étape ${S.station + 1} du parcours`
+            : S.mode === "histoire" ? `chapitre « ${S.chapitre.titre} »`
+            : `onglet ${S.mode}`;
+  $("#retourCtx").textContent = `Envoyé depuis : ${ctx}`;
+
+  $("#formRetour").onsubmit = e => { e.preventDefault(); envoyerRetour(ctx); };
+}
+
+async function envoyerRetour(contexte) {
+  const message = $("#retourMessage").value.trim();
+  if (!message) return;
+  const contact = $("#retourContact").value.trim();
+  const etat = $("#retourEtat"), bouton = $("#retourEnvoyer");
+  const cle = (CONFIG.retourCle || "").trim();
+
+  // sans service configuré : on ouvre le logiciel de courriel du visiteur
+  if (!cle) {
+    const corps = encodeURIComponent(`${message}\n\n— ${contact || "anonyme"}\n(${contexte})`);
+    location.href = `mailto:${CONFIG.courriel}?subject=${encodeURIComponent("Retour sur CLIMAT")}&body=${corps}`;
+    etat.innerHTML = `<span class="ok">Votre logiciel de messagerie devrait s'ouvrir. Merci !</span>`;
+    return;
+  }
+
+  bouton.disabled = true; bouton.textContent = "Envoi…";
+  etat.textContent = "";
+  try {
+    const web3 = CONFIG.retourType !== "formspree";
+    const url = web3 ? "https://api.web3forms.com/submit" : cle;
+    const corps = web3
+      ? { access_key: cle, subject: "Retour sur CLIMAT", from_name: "CLIMAT",
+          message, contact: contact || "non renseigné", contexte }
+      : { message, contact: contact || "non renseigné", contexte };
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(corps),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    etat.innerHTML = `<span class="ok">Message envoyé. Merci — c'est précieux.</span>`;
+    $("#retourMessage").value = "";
+    bouton.textContent = "Envoyé";
+    tracer("retour-envoye", "Retour envoyé");
+  } catch (err) {
+    bouton.disabled = false; bouton.textContent = "Envoyer";
+    const corps = encodeURIComponent(`${message}\n\n— ${contact || "anonyme"}\n(${contexte})`);
+    etat.innerHTML = `<span class="alerte">L'envoi a échoué (${err.message}).</span> ` +
+      `<a href="mailto:${CONFIG.courriel}?subject=Retour%20sur%20CLIMAT&body=${corps}">Envoyer par courriel à la place</a>`;
+  }
+}
+
+/* =====================================================================
+   13. AIDE
    ===================================================================== */
 function ouvrirModale(html) {
   $("#modaleContenu").innerHTML = html;

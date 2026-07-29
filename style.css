@@ -530,6 +530,30 @@ input[type=range]::-moz-range-thumb{ width:14px; height:14px; border:none; borde
 .modale-boite h3{ font-size:10px; letter-spacing:.16em; text-transform:uppercase;
   color:var(--texte-faible); margin:20px 0 9px; }
 .modale-boite p{ font-size:13px; color:#c8d6e8; margin-bottom:10px; line-height:1.6; }
+/* --- Formulaire de retour --- */
+.retour-form{ display:flex; flex-direction:column; gap:5px; }
+.retour-lab{ font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--texte-faible); margin-top:10px; }
+.retour-lab span{ text-transform:none; letter-spacing:0; opacity:.75; }
+.retour-form textarea, .retour-form input{
+  width:100%; background:rgba(255,255,255,.05); border:1px solid var(--bord);
+  border-radius:10px; padding:10px 12px; color:var(--texte); font:inherit; font-size:13px;
+  resize:vertical; outline:none; transition:.15s;
+}
+.retour-form textarea:focus, .retour-form input:focus{ border-color:var(--bord-fort);
+  background:rgba(255,255,255,.08); }
+.retour-ctx{ font-size:10.5px; color:var(--texte-faible); font-family:var(--mono); margin-top:8px; }
+.retour-envoyer{ margin-top:12px; padding:11px; border-radius:10px; font-size:13.5px;
+  background:rgba(69,214,154,.16); border:1px solid rgba(69,214,154,.4); color:#a9f0d2;
+  transition:.16s; }
+.retour-envoyer:hover:not(:disabled){ background:rgba(69,214,154,.3); color:#fff; }
+.retour-envoyer:disabled{ opacity:.5; cursor:default; }
+.retour-etat{ font-size:12px; margin-top:9px; min-height:1.2em; }
+.retour-etat .ok{ color:var(--vert); }
+.retour-etat .alerte{ color:var(--accent-2); }
+.retour-vie-privee{ font-size:10.8px !important; color:var(--texte-faible) !important;
+  margin-top:12px !important; line-height:1.5; }
+
 .geste-carte{ display:flex; gap:13px; align-items:center; padding:11px 13px; border-radius:11px;
   background:rgba(255,255,255,.035); border:1px solid var(--bord); margin-bottom:8px; }
 .geste-emoji{ font-size:27px; width:38px; text-align:center; }
