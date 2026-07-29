@@ -6,13 +6,21 @@ et quels leviers existent réellement.
 
 Globe 3D pilotable **à la main devant la webcam** — ou à la souris, au clavier, au doigt.
 
-## Lancer
+## 🌍 En ligne : **[leclimat.be](https://leclimat.be)**
+
+Hébergé sur GitHub Pages, HTTPS via Let's Encrypt. Le fichier `CNAME` à la racine
+déclare le domaine : ne pas le supprimer, le site retomberait sur l'ancienne adresse.
+
+## Lancer en local
 
 ```bash
 python "climat-terre/serve.py" 8791
 ```
 
 Puis http://localhost:8791
+
+Utile pour développer. Deux differences avec le site publié : GoatCounter refuse
+volontairement de compter sur `localhost`, et le cache navigateur est désactivé.
 
 Le serveur local est nécessaire : les navigateurs bloquent l'accès à la caméra sur `file://`.
 Une connexion internet est requise au premier lancement (three.js, MediaPipe et le fond de
@@ -175,6 +183,29 @@ Deux précisions honnêtes, parce qu'une mention de droits ne fait pas tout :
 Autrement dit : cette mention interdit la réutilisation, elle ne l'empêche pas techniquement.
 Rendre le dépôt privé tout en gardant le site en ligne suppose un compte GitHub payant.
 
+## Publier une mise à jour
+
+```bash
+python outils/version.py && git add -A && git commit -m "..." && git push
+```
+
+`version.py` estampille une nouvelle version dans `index.html`, que `app.js` propage à
+`data.js` et `paleo.js`. Sans cette étape, les visiteurs gardent l'ancienne version en
+cache jusqu'à dix minutes. Le site se met à jour environ 30 secondes après le push.
+
+## Services externes
+
+Configurés dans `CONFIG`, au début de `data.js`. Vider une valeur désactive le service :
+aucune requête n'est alors émise.
+
+| Service | Rôle | Tableau de bord |
+|---|---|---|
+| GoatCounter | Audience, sans cookie ni consentement requis | [climat-georges.goatcounter.com](https://climat-georges.goatcounter.com) |
+| Web3Forms | Formulaire d'avis, envoi vers la boîte de l'auteur | web3forms.com |
+
+Les étapes du parcours et les onglets sont comptés séparément (`parcours-etape-1` à
+`parcours-etape-9`) : l'écart entre la première et la dernière indique le taux d'abandon.
+
 ## Fichiers
 
 | Fichier | Rôle |
@@ -183,7 +214,9 @@ Rendre le dépôt privé tout en gardant le site en ligne suppose un compte GitH
 | `style.css` | Thème sombre, mise en page, responsive |
 | `data.js` | Toutes les données scientifiques et leurs sources |
 | `paleo.js` | Continents reconstitués, 30 âges (généré, 2,5 Mo) |
+| `CNAME` | Domaine personnalisé — géré par GitHub, ne pas supprimer |
 | `outils/recuperer_paleogeographie.py` | Régénère `paleo.js` depuis GPlates |
+| `outils/version.py` | Estampille une version pour casser le cache |
 | `app.js` | Globe 3D, frise, graphiques, simulateur, détection gestuelle |
 | `serve.py` | Serveur statique local |
 
