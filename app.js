@@ -712,6 +712,38 @@ function initEvenements() {
 
 function evenementDe(chapitreId) { return EVENEMENTS.find(e => e.chapitre === chapitreId) || null; }
 
+/** Toutes les animations au même endroit : rattachées à un chapitre, elles
+    étaient invisibles pour qui ne parcourait pas les 17 chapitres. */
+function ouvrirMenuAnimations() {
+  const carte = e => `
+    <div class="anim-carte" data-anim="${e.id}">
+      <div class="anim-head">
+        <span class="anim-nom">${e.nom}</span>
+        <span class="anim-quand">${e.quand}</span>
+      </div>
+      <div class="anim-resume">${e.resume}</div>
+      <div class="anim-avert">⚠ ${e.avertissement}</div>
+      <span class="anim-jouer">▶ Lancer</span>
+    </div>`;
+  const globales = EVENEMENTS.filter(e => e.global);
+  const locales = EVENEMENTS.filter(e => !e.global);
+  ouvrirModale(`
+    <h2>Animations</h2>
+    <p>Des reconstitutions destinées à rendre visible ce que les chiffres décrivent.
+    Chacune indique ce qui repose sur des données publiées et ce qui relève du schéma.</p>
+
+    <h3>Traverser le temps</h3>
+    ${globales.map(carte).join("")}
+
+    <h3>Événements</h3>
+    ${locales.map(carte).join("")}
+  `);
+  $$(".anim-carte").forEach(el => el.onclick = () => {
+    $("#modale").classList.add("hidden");
+    lancerEvenement(el.dataset.anim);
+  });
+}
+
 function lancerEvenement(id) {
   const def = EVENEMENTS.find(e => e.id === id);
   if (!def) return;
@@ -719,8 +751,9 @@ function lancerEvenement(id) {
   if (ch && S.chapitre !== ch) allerA(anneeVersP(ch.annee), true);
   S.autoRotation = false;
   S.lecture && basculerLecture(false);
-  cam.cibleDist = id === "lune" ? 6.2 : 3.1;
-  EVT = { def, t0: performance.now(), tTexture: 0 };
+  cam.cibleDist = id === "lune" ? 6.2 : def.global ? 3.4 : 3.1;
+  EVT = { def, t0: performance.now(), tTexture: 0, dernierAge: null };
+  tracer("animation-" + id, "Animation : " + def.nom);
   $("#evQuand").textContent = def.quand;
   $("#evNom").textContent = def.nom;
   $("#evAvert").textContent = def.avertissement;
@@ -847,6 +880,53 @@ function animerEvenement(now) {
     atmos.material.uniforms.teinte.value.setHex(0xbfe4ff);
     phaseEvenement(p < 0.45 ? `La glace descend — limite vers ${Math.round(lat)}° de latitude`
                             : "L'albédo s'emballe : la Terre bascule", p);
+
+  } else if (def.id === "derive") {
+    // enchaînement des 30 reconstructions publiées, de la plus ancienne à aujourd'hui
+    const ages = PALEO_AGES.slice().sort((a, b) => b - a);
+    const i = Math.min(Math.floor(p * ages.length), ages.length - 1);
+    const age = ages[i];
+    const annee = 2025 - age * 1e6;
+    if (age !== EVT.dernierAge) {
+      EVT.dernierAge = age;
+      const ch = chapitrePour(annee);
+      dessinerTexture(ch.tAnom, age === 0 ? null : age, null);
+      atmos.material.uniforms.teinte.value.setHex(
+        ch.tAnom > 3 ? 0xff8a5c : ch.tAnom < -3 ? 0x9fd8ff : 0x4fa8ff);
+    }
+    allerA(anneeVersP(annee));       // la frise et le panneau suivent la dérive
+    phaseEvenement(age === 0 ? "Aujourd'hui" : `Il y a ${age} millions d'années`, p);
+
+  } else if (def.id === "deglaciation") {
+    const anom = lerp(-6, -0.2, p);
+    const annee = lerp(2025 - 21000, 2025 - 6000, p);
+    if (now - EVT.tTexture > 120) {
+      EVT.tTexture = now;
+      dessinerTexture(anom, null, null);
+      atmos.material.uniforms.teinte.value.setHex(anom < -3 ? 0x9fd8ff : 0x4fa8ff);
+    }
+    allerA(anneeVersP(annee));
+    phaseEvenement(
+      `Il y a ${Math.round((2025 - annee) / 1000)} 000 ans · ${fr(anom, 1)} °C par rapport au préindustriel`, p);
+
+  } else if (def.id === "futurs") {
+    const n = SCENARIOS.length;
+    const i = Math.min(Math.floor(p * n), n - 1);
+    const sc = SCENARIOS[i];
+    const f = clamp((p * n) - i, 0, 1);
+    const anom = lerp(CADRE_PHYSIQUE.rechauffementActuel, sc.t2100, Math.min(f * 1.4, 1));
+    if (now - EVT.tTexture > 120) {
+      EVT.tTexture = now;
+      dessinerTexture(anom, null, null);
+      atmos.material.uniforms.teinte.value.setHex(anom > 3 ? 0xff8a5c : 0x4fa8ff);
+    }
+    const avancement = Math.min(f * 1.4, 1);
+    const annee = Math.round(lerp(2025, 2100, avancement));
+    allerA(anneeVersP(annee));
+    // ne jamais afficher la valeur en cours comme si c'était celle de 2100
+    phaseEvenement(avancement >= 1
+      ? `${sc.nom} — ${fr(sc.t2100, 1)} °C en 2100`
+      : `${sc.nom} — ${annee} : ${fr(anom, 1)} °C, en route vers ${fr(sc.t2100, 1)} °C`, p);
 
   } else if (def.id === "oxydation") {
     const c = new THREE.Color(0xd98a3a).lerp(new THREE.Color(0x6fa8d8), p);
@@ -1019,6 +1099,7 @@ function initUI() {
   initNarration();
   $("#btnAide").onclick = ouvrirAide;
   $("#btnRetour").onclick = ouvrirRetour;
+  $("#btnAnim").onclick = ouvrirMenuAnimations;
   $("#evStop").onclick = arreterEvenement;
   $("#feuillePoignee").onclick = basculerFeuille;
 

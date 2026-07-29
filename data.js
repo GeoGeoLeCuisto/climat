@@ -1259,6 +1259,50 @@ export const EVENEMENTS = [
     ],
     avertissement: "Animation schématique : trajectoire, vitesse et durée sont illustratives, pas simulées.",
   },
+  /* --- Animations globales : elles traversent toute la frise, elles ne sont
+     donc rattachées à aucun chapitre. Accessibles par le menu Animations. --- */
+  {
+    id: "derive", global: true, duree: 26000,
+    nom: "La dérive des continents",
+    quand: "de 900 millions d'années à aujourd'hui",
+    resume: "Les continents se déplacent de quelques centimètres par an — l'ordre de grandeur " +
+      "de la pousse d'un ongle. Sur des centaines de millions d'années, cela suffit à assembler " +
+      "puis disloquer des supercontinents, et à redessiner entièrement la carte du monde.",
+    faits: [
+      { t: "Cette animation n'est pas une illustration : elle enchaîne 30 reconstructions publiées du modèle MERDITH2021, de 900 Ma à aujourd'hui.", s: "Merdith et al. 2021, Earth-Science Reviews, via GPlates (EarthByte)" },
+      { t: "La tectonique est l'un des grands régulateurs du climat sur le long terme : elle déplace les continents en latitude, ouvre et ferme les passages océaniques, et contrôle l'altération des roches qui capture le CO₂.", s: "Ruddiman, Earth's Climate: Past and Future" },
+      { t: "Regardez la Pangée s'assembler vers 250 Ma, puis se disloquer : c'est l'ouverture de l'Atlantique.", s: "Modèle MERDITH2021" },
+    ],
+    avertissement: "Reconstructions réelles, mais avant 200 Ma la longitude n'est pas contrainte par les données : les blocs peuvent être décalés en est-ouest.",
+  },
+  {
+    id: "deglaciation", global: true, duree: 14000,
+    nom: "La dernière déglaciation",
+    quand: "de −21 000 ans à aujourd'hui",
+    resume: "Il y a 21 000 ans, une calotte de trois kilomètres d'épaisseur couvrait le Canada et " +
+      "la Scandinavie, et le niveau des mers était 120 mètres plus bas. En 10 000 ans, tout fond. " +
+      "C'est le dernier grand changement climatique naturel — et il a été dix fois plus lent que le nôtre.",
+    faits: [
+      { t: "Réchauffement de 5 à 7 °C étalé sur environ 10 000 ans, soit de l'ordre de 0,06 °C par siècle.", s: "Tierney et al. 2020, Nature ; Shakun et al. 2012, Nature" },
+      { t: "Le réchauffement actuel est d'environ 0,2 °C par décennie, soit 2 °C par siècle : plus de trente fois plus rapide.", s: "GIEC AR6 WG1 SPM ; Forster et al. 2024, ESSD" },
+      { t: "Le niveau des mers est remonté de 120 mètres, à un rythme atteignant par moments plus de 40 mm par an lors des pulsations de fonte.", s: "Deschamps et al. 2012, Nature — Meltwater Pulse 1A" },
+    ],
+    avertissement: "L'extension des glaces suit le modèle simplifié de l'application (latitude = 70 + 4 × anomalie), pas une reconstruction d'inlandsis.",
+  },
+  {
+    id: "futurs", global: true, duree: 15000,
+    nom: "Les futurs possibles",
+    quand: "de 2025 à 2100",
+    resume: "La même planète, réchauffée selon chacun des cinq scénarios du GIEC. " +
+      "L'animation enchaîne les trajectoires du plus sobre au plus émetteur, pour rendre visible " +
+      "ce que représentent 1,4 °C et 4,4 °C sur le même globe.",
+    faits: [
+      { t: "SSP1-1.9 : +1,4 °C. SSP1-2.6 : +1,8. SSP2-4.5 : +2,7. SSP3-7.0 : +3,6. SSP5-8.5 : +4,4 °C en 2081-2100 vs 1850-1900.", s: "GIEC AR6 WG1, tableau SPM.1" },
+      { t: "Les politiques actuellement mises en œuvre situent la trajectoire vers +2,6 à +3,1 °C.", s: "PNUE Emissions Gap Report 2024" },
+      { t: "Notez l'amplification polaire : l'Arctique change bien plus vite que les tropiques dans tous les scénarios.", s: "Rantanen et al. 2022 ; GIEC AR6 WG1" },
+    ],
+    avertissement: "Le champ de couleur applique le modèle zonal simplifié de l'application à l'anomalie globale de chaque scénario. Ce n'est pas une carte de sortie de modèle climatique.",
+  },
   {
     id: "boule", chapitre: "snowball", duree: 9000,
     nom: "La Terre boule de neige",
