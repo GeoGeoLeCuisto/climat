@@ -32,18 +32,28 @@ export const META = {
    courriel. Rien n'est activé à votre insu.
    ===================================================================== */
 export const CONFIG = {
-  /* Mesure d'audience — GoatCounter (goatcounter.com), gratuit et sans cookie.
-     Créez un compte, puis mettez ici votre code : https://VOTRECODE.goatcounter.com
+  /* Mesure d'audience — GoatCounter, gratuit, sans cookie ni identifiant
+     persistant. Tableau de bord : https://climat-georges.goatcounter.com
      Laisser vide = aucune mesure, aucune requête. */
-  audience: "",
+  audience: "https://climat-georges.goatcounter.com",
 
-  /* Formulaire de retour — Web3Forms (web3forms.com) ou Formspree.
-     Collez la clé d'accès Web3Forms, ou l'URL complète Formspree.
-     Laisser vide = le bouton ouvre le logiciel de courriel du visiteur. */
-  retourCle: "",
+  /* Formulaire de retour — Web3Forms. Cette clé est conçue pour être publique :
+     elle figure dans le code de toute page qui utilise le service. Elle ne donne
+     accès à rien ; elle autorise seulement l'envoi vers l'adresse enregistrée.
+     Contrepartie : n'importe qui peut s'en servir pour écrire à cette adresse.
+     Si du courrier indésirable arrive, régénérez-la sur web3forms.com. */
+  retourCle: "b72d1147-2a6a-47dd-bcf3-fc8a3782229f",
   retourType: "web3forms",              // "web3forms" ou "formspree"
-  courriel: "adresse-retiree@example.invalid", // utilisé en repli, et par Web3Forms
+
+  /* Adresse de repli, utilisée uniquement si l'envoi échoue. Assemblée à
+     l'exécution plutôt qu'écrite en clair : cela n'arrête pas un aspirateur
+     d'adresses déterminé, mais évite la récolte automatique la plus grossière
+     dans un dépôt public. */
+  courrielParts: ["adresse-retiree", "gmail.com"],
 };
+
+/** Adresse de repli, reconstituée à l'exécution. */
+export function courrielAuteur() { return CONFIG.courrielParts.join("@"); }
 
 /* ---------------------------------------------------------------------
    1. AXE DU TEMPS

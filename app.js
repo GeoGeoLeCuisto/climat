@@ -16,7 +16,8 @@ const {
   CO2_PHANEROZOIQUE, CYCLES_GLACIAIRES, KEELING, TEMPERATURE_MODERNE, EMISSIONS,
   SCENARIOS, SCENARIO_SOURCE, CONSEQUENCES, REGIONS,
   CADRE_PHYSIQUE, LEVIERS, LEVIERS_SOURCE, FOCUS_CIMENT, IDEES_RECUES, METHODE,
-  NARRATIONS, NARRATIONS_EN, NARRATION_PARCOURS, PARCOURS, AGIR, SURFACES, EVENEMENTS, CONFIG,
+  NARRATIONS, NARRATIONS_EN, NARRATION_PARCOURS, PARCOURS, AGIR, SURFACES, EVENEMENTS,
+  CONFIG, courrielAuteur,
 } = await import("./data.js" + V);
 
 /* =====================================================================
@@ -2535,6 +2536,7 @@ function narrationSuit() {
    ce qui permet de mesurer l'audience sans bandeau de consentement.
    ===================================================================== */
 let audienceActive = false;
+const filAudience = [];               // les vues précèdent le chargement du script
 
 function initAudience() {
   const code = (CONFIG.audience || "").trim();
@@ -2543,14 +2545,24 @@ function initAudience() {
   s.async = true;
   s.dataset.goatcounter = code.replace(/\/$/, "") + "/count";
   s.src = "//gc.zgo.at/count.js";
-  s.onload = () => { audienceActive = true; };
+  s.onload = () => {
+    audienceActive = true;
+    // on rejoue ce qui s'est produit pendant le chargement, sans quoi la
+    // toute première étape du parcours ne serait jamais comptée
+    while (filAudience.length) { const e = filAudience.shift(); tracer(e[0], e[1]); }
+  };
+  s.onerror = () => { filAudience.length = 0; };   // bloqueur de pub : on abandonne sans bruit
   document.head.appendChild(s);
 }
 
 /** Enregistre une étape franchie. Sert à voir où les visiteurs décrochent. */
 function tracer(chemin, titre) {
-  if (!audienceActive || !window.goatcounter || !window.goatcounter.count) return;
-  window.goatcounter.count({ path: chemin, title: titre, event: true });
+  if (!(CONFIG.audience || "").trim()) return;
+  if (!audienceActive || !window.goatcounter || !window.goatcounter.count) {
+    if (filAudience.length < 30) filAudience.push([chemin, titre]);
+    return;
+  }
+  try { window.goatcounter.count({ path: chemin, title: titre, event: true }); } catch (e) { /* jamais bloquant */ }
 }
 
 let dernierTrace = "";
@@ -2605,7 +2617,7 @@ async function envoyerRetour(contexte) {
   // sans service configuré : on ouvre le logiciel de courriel du visiteur
   if (!cle) {
     const corps = encodeURIComponent(`${message}\n\n— ${contact || "anonyme"}\n(${contexte})`);
-    location.href = `mailto:${CONFIG.courriel}?subject=${encodeURIComponent("Retour sur CLIMAT")}&body=${corps}`;
+    location.href = `mailto:${courrielAuteur()}?subject=${encodeURIComponent("Retour sur CLIMAT")}&body=${corps}`;
     etat.innerHTML = `<span class="ok">Votre logiciel de messagerie devrait s'ouvrir. Merci !</span>`;
     return;
   }
@@ -2633,7 +2645,7 @@ async function envoyerRetour(contexte) {
     bouton.disabled = false; bouton.textContent = "Envoyer";
     const corps = encodeURIComponent(`${message}\n\n— ${contact || "anonyme"}\n(${contexte})`);
     etat.innerHTML = `<span class="alerte">L'envoi a échoué (${err.message}).</span> ` +
-      `<a href="mailto:${CONFIG.courriel}?subject=Retour%20sur%20CLIMAT&body=${corps}">Envoyer par courriel à la place</a>`;
+      `<a href="mailto:${courrielAuteur()}?subject=Retour%20sur%20CLIMAT&body=${corps}">Envoyer par courriel à la place</a>`;
   }
 }
 
