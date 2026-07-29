@@ -1108,6 +1108,7 @@ function initUI() {
   $("#btnAide").onclick = ouvrirAide;
   $("#btnRetour").onclick = ouvrirRetour;
   $("#btnAnim").onclick = ouvrirMenuAnimations;
+  $("#btnPlus").onclick = ouvrirMenuPlus;
   $("#evStop").onclick = arreterEvenement;
   $("#feuillePoignee").onclick = basculerFeuille;
 
@@ -2701,6 +2702,39 @@ async function envoyerRetour(contexte) {
     etat.innerHTML = `<span class="alerte">L'envoi a échoué (${err.message}).</span> ` +
       `<a href="mailto:${courrielAuteur()}?subject=Retour%20sur%20CLIMAT&body=${corps}">Envoyer par courriel à la place</a>`;
   }
+}
+
+/* =====================================================================
+   12 bis. MENU COMPACT DES ACTIONS
+   Sur téléphone et en paysage, les cinq boutons de l'en-tête ne tiennent
+   pas et débordaient hors de l'écran sans possibilité de défiler — donc
+   sans aucun moyen d'atteindre l'aide, les avis ou les animations.
+   ===================================================================== */
+function ouvrirMenuPlus() {
+  const item = (id, emoji, nom, desc, etat) => `
+    <button class="plus-item" data-plus="${id}">
+      <span class="plus-emoji">${emoji}</span>
+      <span><span class="plus-nom">${nom}</span><div class="plus-desc">${desc}</div></span>
+      ${etat ? `<span class="plus-etat">${etat}</span>` : ""}
+    </button>`;
+  ouvrirModale(`
+    <h2>Options</h2>
+    <div class="plus-liste">
+      ${item("narration", "🎙", "Narration", "Écouter le chapitre à voix haute, en français ou en anglais", N.actif ? "en cours" : "")}
+      ${item("animations", "🎬", "Animations", "Dérive des continents, déglaciation, impacts, futurs possibles")}
+      ${item("gestes", "✋", "Gestes", "Piloter le globe à la main devant la caméra", S.gestes ? "actifs" : "")}
+      ${item("avis", "💬", "Donner votre avis", "Dire à l'auteur ce qui est confus, faux ou manquant")}
+      ${item("aide", "❓", "Aide", "Comment manipuler le globe, lire les données, les raccourcis")}
+    </div>`);
+  $$("[data-plus]").forEach(el => el.onclick = () => {
+    const a = el.dataset.plus;
+    $("#modale").classList.add("hidden");
+    if (a === "narration") basculerNarration(!N.actif);
+    else if (a === "animations") ouvrirMenuAnimations();
+    else if (a === "gestes") basculerGestes(!S.gestes);
+    else if (a === "avis") ouvrirRetour();
+    else ouvrirAide();
+  });
 }
 
 /* =====================================================================

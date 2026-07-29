@@ -7,7 +7,7 @@
 <!-- Le suffixe ?v= force le navigateur a recharger apres chaque publication.
      Il est mis a jour automatiquement par outils/version.py, et app.js le
      propage lui-meme a data.js et paleo.js. Ne pas modifier a la main. -->
-<link rel="stylesheet" href="style.css?v=202607290808">
+<link rel="stylesheet" href="style.css?v=202607291204">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>">
 <script type="importmap">
 {
@@ -62,11 +62,16 @@
       <button class="mode-btn" data-mode="methode">Méthode &amp; sources</button>
     </nav>
     <div class="top-actions">
-      <button id="btnNarration" class="pill" title="Écouter le récit à voix haute">🎙 Narration</button>
-      <button id="btnGestes" class="pill" title="Activer le pilotage par la caméra">✋ Gestes</button>
-      <button id="btnAnim" class="pill" title="Toutes les animations">🎬 Animations</button>
-      <button id="btnRetour" class="pill ghost" title="Donner votre avis à l'auteur">💬 Avis</button>
+      <!-- Les libelles sont dans un span : on les masque avant de sacrifier
+           les boutons eux-memes quand la barre manque de place. -->
+      <button id="btnNarration" class="pill" title="Écouter le récit à voix haute">🎙<span class="lab"> Narration</span></button>
+      <button id="btnGestes" class="pill" title="Activer le pilotage par la caméra">✋<span class="lab"> Gestes</span></button>
+      <button id="btnAnim" class="pill" title="Toutes les animations">🎬<span class="lab"> Animations</span></button>
+      <button id="btnRetour" class="pill ghost" title="Donner votre avis à l'auteur">💬<span class="lab"> Avis</span></button>
       <button id="btnAide" class="pill ghost" title="Aide et raccourcis">?</button>
+      <!-- Sur petit ecran, les cinq boutons ci-dessus debordaient hors de
+           l'ecran sans pouvoir defiler : ils sont regroupes ici. -->
+      <button id="btnPlus" class="pill" title="Narration, gestes, animations, avis, aide">⋯</button>
     </div>
   </header>
 
@@ -172,6 +177,6 @@
   </div>
 </div>
 
-<script type="module" src="app.js?v=202607290808"></script>
+<script type="module" src="app.js?v=202607291204"></script>
 </body>
 </html>

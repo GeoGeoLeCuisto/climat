@@ -582,12 +582,47 @@ kbd{ font-family:var(--mono); font-size:10.5px; background:rgba(255,255,255,.09)
 /* =====================================================================
    RESPONSIVE
    ===================================================================== */
+/* Valeurs par défaut, déclarées AVANT les media queries : à spécificité
+   égale c'est la dernière règle qui l'emporte, donc les placer après
+   annulerait silencieusement tout ce qui suit. */
+#feuillePoignee{ display:none; }
+#btnPlus{ display:none; }
+
+/* ---------------------------------------------------------------------
+   BARRE SUPÉRIEURE — trois paliers
+   Avec ses libellés, la barre réclame près de 1400 px. En dessous, elle
+   débordait hors de l'écran sans possibilité de défiler : les boutons
+   Avis et Aide devenaient tout simplement inatteignables, y compris sur
+   une tablette en paysage. On sacrifie d'abord les mots, puis les boutons.
+   ------------------------------------------------------------------- */
+@media (max-width:1420px){
+  .top-actions .lab{ display:none; }
+  .top-actions .pill{ padding:6px 11px; font-size:14px; line-height:1.15; }
+}
+/* Même sans libellés, la barre réclame ~1200 px : en dessous, on regroupe. */
+@media (max-width:1250px){
+  #btnNarration, #btnGestes, #btnAnim, #btnRetour, #btnAide{ display:none; }
+  #btnPlus{ display:block; padding:6px 13px; font-size:15px; line-height:1.15; }
+  #modes{ min-width:0; overflow-x:auto; scrollbar-width:none; justify-content:flex-start; }
+  #modes::-webkit-scrollbar{ display:none; }
+  .mode-btn{ flex:0 0 auto; }
+}
+
 @media (max-width:1180px){
   #contenu{ width:340px; }
   #chapitres{ width:214px; }
 }
-/* La poignée de feuille n'existe que sur petit écran. */
-#feuillePoignee{ display:none; }
+/* Menu compact des actions secondaires */
+.plus-liste{ display:flex; flex-direction:column; gap:8px; }
+.plus-item{ display:flex; align-items:center; gap:13px; padding:13px 15px; border-radius:12px;
+  background:rgba(255,255,255,.04); border:1px solid var(--bord); text-align:left;
+  transition:.16s; width:100%; }
+.plus-item:hover{ background:rgba(79,195,247,.12); border-color:var(--bord-fort); }
+.plus-emoji{ font-size:21px; width:28px; text-align:center; flex:0 0 auto; }
+.plus-nom{ font-size:14px; color:#eaf3ff; }
+.plus-desc{ font-size:11.4px; color:var(--texte-faible); margin-top:2px; line-height:1.4; }
+.plus-etat{ margin-left:auto; font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  padding:3px 9px; border-radius:999px; background:rgba(69,214,154,.18); color:#a9f0d2; flex:0 0 auto; }
 
 /* ---------------------------------------------------------------------
    TÉLÉPHONE ET TABLETTE EN PORTRAIT
@@ -606,7 +641,9 @@ kbd{ font-family:var(--mono); font-size:10.5px; background:rgba(255,255,255,.09)
   #modes::-webkit-scrollbar{ display:none; }
   .mode-btn{ padding:5px 12px; font-size:12px; flex:0 0 auto;
     background:rgba(255,255,255,.05); }
-  .top-actions .pill{ padding:5px 10px; font-size:12px; }
+  /* les cinq actions passent dans le menu « ⋯ » : sinon elles debordent */
+  #btnNarration, #btnGestes, #btnAnim, #btnRetour, #btnAide{ display:none; }
+  #btnPlus{ display:block; padding:5px 13px; font-size:15px; line-height:1.1; }
   #chapitres{ display:none; }
   #globeBadge{ display:none; }
 
@@ -668,9 +705,16 @@ kbd{ font-family:var(--mono); font-size:10.5px; background:rgba(255,255,255,.09)
   .brand-text em{ display:none; }
   .brand-text b{ font-size:13px; }
   .brand-mark{ font-size:17px; }
-  #modes{ padding:2px; }
-  .mode-btn{ padding:3px 9px; font-size:10.5px; }
-  .top-actions .pill{ padding:4px 9px; font-size:10.5px; }
+  /* en paysage tout tient sur une ligne : les onglets doivent pouvoir defiler
+     plutot que de pousser les autres elements hors de l'ecran */
+  #modes{ padding:2px; min-width:0; overflow-x:auto; scrollbar-width:none;
+    justify-content:flex-start; }
+  #modes::-webkit-scrollbar{ display:none; }
+  .mode-btn{ padding:3px 9px; font-size:10.5px; flex:0 0 auto; }
+  .brand{ min-width:0; }
+  .top-actions{ flex:0 0 auto; }
+  #btnNarration, #btnGestes, #btnAnim, #btnRetour, #btnAide{ display:none; }
+  #btnPlus{ display:block; padding:3px 11px; font-size:14px; line-height:1.1; }
 
   #chapitres{ display:none; }
   #globeBadge{ display:none; }
